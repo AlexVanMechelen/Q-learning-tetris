@@ -17,7 +17,7 @@
 
 ## State space
 
-The state space needs to remain as small as possibe, since we work with a Q table with 1 entry for every possible state. The example by [Melax](https://melax.github.io/tetris/tetris.html?fbclid=IwAR0ij-SX_MbPs2y9qCsr-IIGOWs0qJ1n0bgo8pS4JO73H_Yu3G6MLckH-qU) has a state space of 2^(2*6) = 4096, since it looks at a 2x6 area and 2x2 pieces. Let's say we want to use the real tetrominos as pieces. If we would consider a board that is only 8 wide (real board is 10 wide) and considering 4 layers of height (since there's a tetromino 4 blocks long and we don't want our algoritm to prefer placing that long block horizontally, just because of the training environment), we would still have a state space of 2^(4*8) > 4 billion ~ 1 Million * 4096 (Melax).
+The state space needs to remain as small as possibe, since we work with a Q table with 1 entry for every possible state. The example by [Melax](https://melax.github.io/tetris/tetris.html?fbclid=IwAR0ij-SX_MbPs2y9qCsr-IIGOWs0qJ1n0bgo8pS4JO73H_Yu3G6MLckH-qU) has a state space of 2^(2\*6) = 4096, since it looks at a 2x6 area and 2x2 pieces. Let's say we want to use the real tetrominos as pieces. If we would consider a board that is only 8 wide (real board is 10 wide) and considering 4 layers of height (since there's a tetromino 4 blocks long and we don't want our algoritm to prefer placing that long block horizontally, just because of the training environment), we would still have a state space of 2^(4\*8) > 4 billion ~ 1 Million \* 4096 (Melax).
 
 ## Interesting resources
 
