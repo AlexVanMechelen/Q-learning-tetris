@@ -19,7 +19,7 @@ int explore=0;  // flag I used to experiment with exploration
 unsigned result(unsigned state, unsigned action, unsigned piece) 
 {
 	piece <<= action; // Move the piece horizontally to the position indicated by 'action'
-	while((piece & state) || (piece <<WIDTH & state)) // While there is a part of the piece touching one or more blocks in the state
+	while((piece & state) || ((piece <<WIDTH & state) && ((piece<<1 & state) || (action == WIDTH-1)) && ((piece>>1 & state) || (action == 0)))) // While there is a part of the piece touching one or more blocks in the state
 		piece <<=WIDTH; // Move the piece one layer up
 
 	unsigned t = piece|state; // t represents the new board, with the piece placed as low as possible, give the previous state (board) and action (horizontal position)
