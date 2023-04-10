@@ -17,4 +17,4 @@
 
 ## Interesting resources
 
-- [Simplified implementation 2x6 with 2x2 pieces](https://melax.github.io/tetris/tetris.html?fbclid=IwAR0ij-SX_MbPs2y9qCsr-IIGOWs0qJ1n0bgo8pS4JO73H_Yu3G6MLckH-qU)
+- [Simplified implementation 2x6 with 2x2 pieces](https://melax.github.io/tetris/tetris.html?fbclid=IwAR0ij-SX_MbPs2y9qCsr-IIGOWs0qJ1n0bgo8pS4JO73H_Yu3G6MLckH-qU) Documented code: [here](./tetris_height-2_2x2-pieces.cpp).
