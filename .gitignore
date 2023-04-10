@@ -1,1 +1,9 @@
-tetris.exe
+tetris-Qlearning.exe
+tetris-Qlearning.ilk
+tetris-Qlearning.obj
+tetris-Qlearning.pdb
+tetris_height-2_2x2-pieces.exe
+tetris_height-2_2x2-pieces.ilk
+tetris_height-2_2x2-pieces.obj
+tetris_height-2_2x2-pieces.pdb
+vc140.pdb
