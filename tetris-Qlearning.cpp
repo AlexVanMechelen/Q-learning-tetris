@@ -17,7 +17,6 @@ int height =0;
 int explore=0;  // flag I used to experiment with exploration
 
 using namespace std;
-stack<unsigned> row_LIFO_stack; // LIFO stack that keeps track of the rows beneath the top 2 ones which are being used in the crank function
 stack<unsigned> row_LIFO_stack_above; // LIFO stack that keeps track of the rows above the current inspected 2xWIDTH frame (gets filled when there are 'holes' present and we move downward to old layers)
 stack<unsigned> row_LIFO_stack_below; // LIFO stack that keeps track of the rows below the current inspected 2xWIDTH frame (used to save old rows when the top pieces build outside the 2xWIDTH frame)
 stack<unsigned> row_LIFO_stack_above_two; // LIFO stack that keeps track of the rows above the current inspected 2xWIDTH frame and gets used in the crank function
@@ -206,16 +205,9 @@ unsigned crank(unsigned state,unsigned piece,unsigned last_hole_idx = (1<<WIDTH)
 		}
 	}
 
-	while (row_LIFO_stack_above.size()) // While there are entries in the above LIFO stack
-	{
-		row_LIFO_stack_below.push(row_LIFO_stack_above.top()); // Add them to the main below LIFO stack
-		row_LIFO_stack_above.pop(); // Remove them from the above LIFO stack
-	}
-
 	//printf("%4d\n",Q[state]);
 
 	//if(loss)printf("Lost %d rows\n",loss);
-	height = row_LIFO_stack_below.size() + 2; 
 	Q[state] = (1-alpha) * Q[state] + alpha * best; // update Q[state] based on result from state s to t 
 	
 	// average learning rule:  (it was useless)
@@ -234,6 +226,19 @@ unsigned crank(unsigned state,unsigned piece,unsigned last_hole_idx = (1<<WIDTH)
 	}
 
 	state = t;  // move to new state;
+
+	while (row_LIFO_stack_above.size()) // While there are entries in the above LIFO stack
+	{
+		unsigned bottom_row = state & ((1<<WIDTH)-1); // Extract the bottom row
+		row_LIFO_stack_below.push(bottom_row); // Add the bottom row of the state to the main below LIFO stack
+		state>>=WIDTH; // Shift the state one row down
+		unsigned new_top_row = row_LIFO_stack_above.top(); // Extract a new top row for the state from the LIFO above stack
+		row_LIFO_stack_above.pop(); // Remove it from the above LIFO stack
+		state = state | new_top_row<<WIDTH; // Add the new top row to the state
+	}
+
+	height = row_LIFO_stack_below.size() + 2;
+
 	return state;
 }
 
@@ -289,14 +294,14 @@ int main(int,char**)
 	while(game<1<<13) // Play 2^13 games, each consists of 10000 pieces
 	{
 		//explore = (game%2);  // doing exploration didn't help learning
-		srand(0);
+		srand(174);
 		height=0; // This variable keeps track of how heigh the pieces stack up (The game only considers a 2xWIDTH playable game space. If a new piece gets placed in a way that the game can't fit in this 2xWIDTH space and (an) incompleted row(s) get(s) pushed downward, height increases)
 		unsigned state =0; // Keeps track of the board state (can take on values from 0 to 2^(2*WIDTH))
 		for(int i=0;i<10000;i++) // 10000 pieces get added before the game is over
 		{
 			unsigned piece = ((rand()%4)<<WIDTH) +  (rand()%3)+1; // Each piece consisits of a (WIDTH+2)-bit number.The (WIDTH+2) and (WIDTH+1) bits represent the top 2 blocks of the 2x2 piece, the 1st and 2nd bits represent the lower 2 blocks of the 2x2 piece
 			state = Qlearning_iteration(state,piece); // Do a full Q-learning iteration for the current state and piece. Both the state and Q-table get updated
-			//printf("Game: %4d - Iter: %4d\n",game,i);
+			//printf("Game: %4d - Iter: %4d - Height: %4d\n",game,i,height);
 		}
 		empty_stack(row_LIFO_stack_below); // Empty the game LIFO stack
 		game++;
