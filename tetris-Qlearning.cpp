@@ -15,6 +15,7 @@ float Q[1<<(WIDTH+WIDTH)];  // utility value -> array of size 2^(2*WIDTH) -> One
 int   P[1<<(WIDTH+WIDTH)];  // counter (not really needed)
 int height =0;
 int explore=0;  // flag I used to experiment with exploration
+int num_completed_rows_tmp = 0; // Used to track how many rows are completed by playing the piece
 
 using namespace std;
 stack<unsigned> row_LIFO_stack_above; // LIFO stack that keeps track of the rows above the current inspected 2xWIDTH frame (gets filled when there are 'holes' present and we move downward to old layers)
@@ -44,11 +45,13 @@ unsigned result(unsigned state, unsigned action, unsigned piece)
 	if( (t&(((1<<WIDTH)-1)<<WIDTH)) == (((1<<WIDTH)-1)<<WIDTH)) // Checks if row one is completely filled
 	{
 		t= (t&((1<<WIDTH)-1)) | ((t>>(2*WIDTH))<<WIDTH); // New t is row zero and rows two and three get shifted down to form row one and two (= delete row one)
+		num_completed_rows_tmp += 1;
 	}
 
 	if( (t&((1<<WIDTH)-1)) == ((1<<WIDTH)-1)) // Checks if row zero is completely filled
 	{
 		t>>=WIDTH; // Move all rows above zero down by one (= delete row zero)
+		num_completed_rows_tmp += 1;
 	}
 
 	return t; // Return new state (can have up to height 4)
@@ -140,7 +143,6 @@ unsigned crank(unsigned state,unsigned piece,unsigned last_hole_idx = (1<<WIDTH)
 	int loss=9999; // Number of rows added to height when they're 'pushed down' (2xWIDTH board 'moves up')
 	queue<unsigned> row_FIFO_queue_below_best; // FIFO queue that keeps track of the rows beneath the top 2 ones. Stores the FIFO queue for the current best next state
 	queue<unsigned> row_FIFO_queue_below_tmp; // FIFO queue that keeps track of the rows beneath the top 2 ones. Stores the FIFO queue for one current next state evaluation
-	int num_completed_rows = 0; // Set number of completed rows for this play to zero
 	for(int a=0;a<WIDTH-1;a++) // Loop over all horizontal positions a
 	{
       unsigned pos = (1<<a); // Get insert position
@@ -153,9 +155,12 @@ unsigned crank(unsigned state,unsigned piece,unsigned last_hole_idx = (1<<WIDTH)
 		empty_queue(row_FIFO_queue_below_tmp); // Empty the tmp FIFO queue that keeps track of the rows beneath the top 2 ones for this current next state evaluation
 		stack<unsigned> row_LIFO_stack_above_two_tmp; // LIFO stack that keeps track of the rows above the current inspected 2xWIDTH frame and gets used in the crank function
 		row_LIFO_stack_above_two_tmp = duplicateStack(row_LIFO_stack_above_two); // Fill the tmp LIFO stack that keeps track of the two rows above the current 2xWIDTH frame in 'state'
+		num_completed_rows_tmp = 0; // Set tracker of number of completed rows in this play to zero
 		unsigned n = result(state,a,rotate(piece,r)); // Return the game board that would result from placing 'piece' at horizontal position 'a' with rotation 'r'. Can have up to height 4 
 		int l=0; // Variable to keep track of how many rows were shifted up (number of extra rows above the normal 2)
 		int collision=0; // Bool that keeps track if there's a collision
+		int above_row_completion_flag=0; // Will be used to keep track if playing the piece in the best way completes 
+		unsigned TMP_BEFORE_STATE_N = n;
 		while((!collision) && n>>(2*WIDTH)) // While no collision && there is part of a piece above row one
 		{
 			unsigned bottom_row = n & ((1<<WIDTH)-1); // Extract the bottom row
@@ -170,10 +175,67 @@ unsigned crank(unsigned state,unsigned piece,unsigned last_hole_idx = (1<<WIDTH)
 			}
 			if(extra_row_one & n>>WIDTH) // If there's a collision
 			{
-				collision = 1;
-				break;
+				collision = 1; // Set collision flag to one
+				break; // Break out of this while loop
 			}
 			n = n | extra_row_one<<WIDTH; // Update n according to the previous row above
+			if( (n&(((1<<WIDTH)-1)<<WIDTH)) == (((1<<WIDTH)-1)<<WIDTH)) // Checks if row one is completely filled
+			{
+				assert((!(n>>(2*WIDTH)))); // Can't be any row even higher if it just completed the row above
+				// printf("Tmp above stack size: %1d - l: %1d\n", row_LIFO_stack_above_two_tmp.size(), l);
+				// printf("State: %3d - Piece: %3d - a: %1d - r: %1d - Result state: %5d - New state: %5d\n",state,piece,a,r,TMP_BEFORE_STATE_N,n);
+				// exit(-1);
+				extra_row_one = 0;
+				if(row_LIFO_stack_above_two_tmp.size()) // If there are entries in the LIFO above tmp stack
+				{
+					extra_row_one = row_LIFO_stack_above_two_tmp.top(); // Extract the extra saved blocks on row one that used to be above the current frame in 'state'
+					row_LIFO_stack_above_two_tmp.pop();
+				}
+				n = (n & ((1<<WIDTH)-1)) | extra_row_one<<WIDTH; // Make n equal to row zero of n + the extra_row_one on row one
+			}
+		}
+		// if((l>0 && num_completed_rows_tmp>0))
+		// {
+		// 	printf("State: %3d - Piece: %3d - n_comp: %1d - a: %1d - r: %1d - Result state: %5d - New state: %5d\n",state,piece,num_completed_rows_tmp,a,r,TMP_BEFORE_STATE_N,n);
+		// }
+		assert((!(l>0 && num_completed_rows_tmp>0))); // There can never have been an overflow to rows above the 2xWIDTH playable region if there were also rows completed
+		if(num_completed_rows_tmp == 1) // If one row has been completed the compatibility of the move of the piece needs to be checked with the row above and that row above needs to be moved out of memory into the state first row
+		{
+			unsigned extra_row_one = 0;
+			if(row_LIFO_stack_above_two_tmp.size()) // If there are entries in the LIFO above tmp stack
+			{
+				extra_row_one = row_LIFO_stack_above_two_tmp.top(); // Extract the extra saved blocks on row one that used to be above the current frame in 'state'
+				row_LIFO_stack_above_two_tmp.pop();
+			}
+			if(extra_row_one & n>>WIDTH) // If there's a collision
+			{
+				collision = 1; // Set collision flag to one
+			}
+			n = n | extra_row_one<<WIDTH; // Update n according to the previous row above
+			if( (n&(((1<<WIDTH)-1)<<WIDTH)) == (((1<<WIDTH)-1)<<WIDTH)) // Checks if row one is completely filled
+			{
+				extra_row_one = 0;
+				if(row_LIFO_stack_above_two_tmp.size()) // If there are entries in the LIFO above tmp stack
+				{
+					extra_row_one = row_LIFO_stack_above_two_tmp.top(); // Extract the extra saved blocks on row one that used to be above the current frame in 'state'
+					row_LIFO_stack_above_two_tmp.pop();
+				}
+				n = (n & ((1<<WIDTH)-1)) | extra_row_one<<WIDTH; // Make n equal to row zero of n + the extra_row_one on row one
+			}
+		} else if(num_completed_rows_tmp == 2)
+		{
+			//printf("State: %3d - Piece: %3d - a: %1d - r: %1d - New state: %3d\n",state,piece,a,r,n);
+			assert(n == 0); // If the number of completed rows equals two, the current game state should be empty
+			if(row_LIFO_stack_above_two_tmp.size()) // If there are entries in the LIFO above tmp stack
+			{
+				n = n | row_LIFO_stack_above_two_tmp.top(); // Move the top row on the above LIFO stack to row zero of the state
+				row_LIFO_stack_above_two_tmp.pop();
+			}
+			if(row_LIFO_stack_above_two_tmp.size()) // If there are entries in the LIFO above tmp stack
+			{
+				n = n | row_LIFO_stack_above_two_tmp.top()<<WIDTH; // Move the top row on the above LIFO stack to row one of the state
+				row_LIFO_stack_above_two_tmp.pop();
+			}
 		}
 		if(collision) // If there's a collision
 		{
@@ -181,11 +243,11 @@ unsigned crank(unsigned state,unsigned piece,unsigned last_hole_idx = (1<<WIDTH)
 		}
 		assert(n<(1<< 2*WIDTH)); // Throws an error if there's still part of a piece above row one, which should normally not be the case anymore
 		// if((l<loss)||(l==loss && loss*-100 + gamma * Q[n] > best) ){
-		if(l*-100 + gamma * Q[n] > best) // If the discount factor times the Q value of this new position (score for how good this new position is) MINOUS a punishment for the number of rows lost (l*-100) is bigger than the current best score for a next state
+		if(l*-100 + num_completed_rows_tmp*100 + gamma * Q[n] > best) // If the discount factor times the Q value of this new position (score for how good this new position is) MINOUS a punishment for the number of rows lost (l*-100) is bigger than the current best score for a next state
 		{
 			t=n; // Save the current best next state
 			loss = l; // Save the loss of the current best next state
-			best = loss*-100 + gamma * Q[t]; // Update the current best score for a next state
+			best = loss*-100 + num_completed_rows_tmp*100 + gamma * Q[t]; // Update the current best score for a next state
 			row_FIFO_queue_below_best = duplicateQueue(row_FIFO_queue_below_tmp); // Save a duplicate of this move's below FIFO queue
 		}
 	  }
@@ -294,7 +356,7 @@ int main(int,char**)
 	while(game<1<<13) // Play 2^13 games, each consists of 10000 pieces
 	{
 		//explore = (game%2);  // doing exploration didn't help learning
-		srand(174);
+		srand(0);
 		height=0; // This variable keeps track of how heigh the pieces stack up (The game only considers a 2xWIDTH playable game space. If a new piece gets placed in a way that the game can't fit in this 2xWIDTH space and (an) incompleted row(s) get(s) pushed downward, height increases)
 		unsigned state =0; // Keeps track of the board state (can take on values from 0 to 2^(2*WIDTH))
 		for(int i=0;i<10000;i++) // 10000 pieces get added before the game is over
