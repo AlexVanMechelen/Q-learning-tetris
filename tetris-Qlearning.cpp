@@ -76,33 +76,6 @@ unsigned rotate(unsigned p,int r) // Takes in a piece [(WIDTH+2)-bit number] and
 	return p;
 }
 
-unsigned find_holes(unsigned state,unsigned piece,unsigned last_hole_idx = (1<<WIDTH)-1)
-{
-	unsigned check_piece_width = 1; // One or two depending on the piece width
-	unsigned check_piece = (1<<WIDTH) + 1; // Check_piece has height 2 and width 1 or 2, depending on the piece
-	bitset<32> b(piece); // To count the number of bits in piece that are one
-	if(b.count() > 2 || piece == (1<<WIDTH) + 2 || piece == (1<<WIDTH+1) + 1) // If the piece has width one
-	{
-		check_piece = (3<<WIDTH) + 3; // Make check_piece a square
-		check_piece_width = 2;
-	}
-	unsigned hole_idx = 0; // Keeps track of the hole positions (contains a one at a horizontal position if there's a hole (2 deep) at that horizontal position)
-	for(int a=0;a<WIDTH-check_piece_width+1;a++) // Loop over all horizontal positions a (if the check_piece width equals 2 there are 5 positions, while there are 6 for the piece width of 1)
-	{
-		if (!(check_piece & state)) // If there's a hole at this horizontal index a
-		{
-			hole_idx += 1<<a; // Add a one in the hole_idx at this horizontal index a
-			if (check_piece_width == 2)
-			{
-				hole_idx += 2<<a; // Add a one in the hole_idx left to the current one, since this has already been tested
-			}
-		}
-		check_piece<<=1; // Shift the check_piece horizontally to the left (next check position)
-	}
-	hole_idx = (hole_idx & last_hole_idx) | (hole_idx & (last_hole_idx>>1)) | (hole_idx & (last_hole_idx<<1));
-	return hole_idx;
-}
-
 template <typename T>
 std::stack<T> copy_top_two_from_LIFO_stack(std::stack<T> row_LIFO_stack_above)
 {
@@ -234,7 +207,7 @@ unsigned crank(unsigned state,unsigned piece,unsigned last_hole_idx = (1<<WIDTH)
 	//printf("%4d\n",Q[state]);
 
 	//if(loss)printf("Lost %d rows\n",loss);
-	height += loss; 
+	height = row_LIFO_stack_below.size() + 2; 
 	Q[state] = (1-alpha) * Q[state] + alpha * best; // update Q[state] based on result from state s to t 
 	
 	// average learning rule:  (it was useless)
@@ -256,20 +229,48 @@ unsigned crank(unsigned state,unsigned piece,unsigned last_hole_idx = (1<<WIDTH)
 	return state;
 }
 
+unsigned find_holes(unsigned state,unsigned piece,unsigned last_hole_idx = (1<<WIDTH)-1) // If no thrid argument is supplied it will assume all horizontal positions are possible positions the piece could come from
+{
+	unsigned check_piece_width = 1; // One or two depending on the piece width
+	unsigned check_piece = (1<<WIDTH) + 1; // Check_piece has height 2 and width 1 or 2, depending on the piece
+	bitset<32> b(piece); // To count the number of bits in piece that are one
+	if(b.count() > 2 || piece == (1<<WIDTH) + 2 || piece == (1<<WIDTH+1) + 1) // If the piece has width one
+	{
+		check_piece = (3<<WIDTH) + 3; // Make check_piece a square
+		check_piece_width = 2;
+	}
+	unsigned hole_idx = 0; // Keeps track of the hole positions (contains a one at a horizontal position if there's a hole (2 deep) at that horizontal position)
+	for(int a=0;a<WIDTH-check_piece_width+1;a++) // Loop over all horizontal positions a (if the check_piece width equals 2 there are 5 positions, while there are 6 for the piece width of 1)
+	{
+		if (!(check_piece & state)) // If there's a hole at this horizontal index a
+		{
+			hole_idx += 1<<a; // Add a one in the hole_idx at this horizontal index a
+			if (check_piece_width == 2)
+			{
+				hole_idx += 2<<a; // Add a one in the hole_idx left to the current one, since this has already been tested
+			}
+		}
+		check_piece<<=1; // Shift the check_piece horizontally to the left (next check position)
+	}
+	hole_idx = (hole_idx & last_hole_idx) | (hole_idx & (last_hole_idx>>1)) | (hole_idx & (last_hole_idx<<1)); // Keep only the hole indexed that can be reached from the last hole indexes
+	return hole_idx;
+}
+
 unsigned Qlearning_iteration(unsigned state, unsigned piece, unsigned last_hole_idx = (1<<WIDTH)-1)
 {
 	unsigned hole_idx = find_holes(state, piece, last_hole_idx); // Find holes that can be reached from the hole on the layer above (last_hole_idx) and save them
 	while(hole_idx && row_LIFO_stack_below.size()) // While there are still holes present && there are saved rows below the current 2xWIDTH frame 'state'
 	{
-		unsigned top_row = state & (((1<<WIDTH)-1)<<WIDTH); // Extract the top row
+		unsigned top_row = state>>WIDTH & ((1<<WIDTH)-1); // Extract the top row
 		row_LIFO_stack_above.push(top_row); // Push the top row to the above LIFO stack
 		state = (state<<WIDTH & ((1<<WIDTH+WIDTH)-1)); // Move state one row up and forget the top row
 		state = state | row_LIFO_stack_below.top(); // Add old row from below off the below LIFO stack
 		row_LIFO_stack_below.pop(); // Remove the old row from below from the LIFO stack
+		last_hole_idx = hole_idx; // Set previous (last) hole_idx to the current found one
 		hole_idx = find_holes(state, piece, last_hole_idx); // Find holes that can be reached from the hole on the layer above (last_hole_idx) and save them
 	} // By the end of this loop there are either no more holes OR we're at the bottom row
 	row_LIFO_stack_above_two = copy_top_two_from_LIFO_stack(row_LIFO_stack_above);
-	unsigned next_state = crank(state, piece, last_hole_idx);
+	unsigned next_state = crank(state, piece, last_hole_idx); // Use the last_hole_idx to see where the pieces could be coming from
 	return next_state;
 }
 
@@ -289,6 +290,7 @@ int main(int,char**)
 			state = Qlearning_iteration(state,piece); // Do a full Q-learning iteration for the current state and piece. Both the state and Q-table get updated
 			//printf("Game: %4d - Iter: %4d\n",game,i);
 		}
+		empty_stack(row_LIFO_stack_below); // Empty the game LIFO stack
 		game++;
 		if(0==(game & (game-1)))  // if a power of 2 -> Print the game number + the height of that game (= performance measure)
 			printf("%4d %4d %s\n",game,height,(explore)?"learning":"");
