@@ -21,8 +21,6 @@ stack<unsigned> row_LIFO_stack; // LIFO stack that keeps track of the rows benea
 stack<unsigned> row_LIFO_stack_above; // LIFO stack that keeps track of the rows above the current inspected 2xWIDTH frame (gets filled when there are 'holes' present and we move downward to old layers)
 stack<unsigned> row_LIFO_stack_below; // LIFO stack that keeps track of the rows below the current inspected 2xWIDTH frame (used to save old rows when the top pieces build outside the 2xWIDTH frame)
 stack<unsigned> row_LIFO_stack_above_two; // LIFO stack that keeps track of the rows above the current inspected 2xWIDTH frame and gets used in the crank function
-queue<unsigned> row_FIFO_queue_below_tmp; // FIFO queue that keeps track of the rows beneath the top 2 ones. Stores the FIFO queue for one current next state evaluation
-queue<unsigned> row_FIFO_queue_below_best; // FIFO queue that keeps track of the rows beneath the top 2 ones. Stores the FIFO queue for the current best next state
 
 void empty_queue(queue<unsigned>& q) { // Function used to empty the 'row_FIFO_queue_below_tmp' at the beginning of each next state evaluation
     queue<unsigned> empty; // Initialize an empty queue
@@ -145,12 +143,18 @@ std::stack<T> duplicateStack(std::stack<T> firstStack) {
 template <typename T>
 std::queue<T> duplicateQueue(std::queue<T> firstQueue) {
     std::queue<T> secondQueue;
-    // Copy the values from the first queue to the second queue
+    std::queue<T> tempQueue;
+    // Copy the values from the first queue to the temp queue
     while (!firstQueue.empty()) {
-        T temp = firstQueue.front();
+        tempQueue.push(firstQueue.front());
         firstQueue.pop();
-        secondQueue.push(temp);
+    }
+    // Copy the values from the temp queue to the first and second queues
+    while (!tempQueue.empty()) {
+        T temp = tempQueue.front();
         firstQueue.push(temp);
+        secondQueue.push(temp);
+        tempQueue.pop();
     }
     return secondQueue;
 }
@@ -162,7 +166,8 @@ unsigned crank(unsigned state,unsigned piece,unsigned last_hole_idx = (1<<WIDTH)
 	float best =-999999999.9f; // Initialize best next state to -Inf (any state is better)
 	unsigned t = 0;
 	int loss=9999; // Number of rows added to height when they're 'pushed down' (2xWIDTH board 'moves up')
-	empty_queue(row_FIFO_queue_below_best); // Empty the FIFO queue that keeps track of the rows beneath the top 2 ones for the current best next state
+	queue<unsigned> row_FIFO_queue_below_best; // FIFO queue that keeps track of the rows beneath the top 2 ones. Stores the FIFO queue for the current best next state
+	queue<unsigned> row_FIFO_queue_below_tmp; // FIFO queue that keeps track of the rows beneath the top 2 ones. Stores the FIFO queue for one current next state evaluation
 	int num_completed_rows = 0; // Set number of completed rows for this play to zero
 	for(int a=0;a<WIDTH-1;a++) // Loop over all horizontal positions a
 	{
@@ -282,6 +287,7 @@ int main(int,char**)
 		{
 			unsigned piece = ((rand()%4)<<WIDTH) +  (rand()%3)+1; // Each piece consisits of a (WIDTH+2)-bit number.The (WIDTH+2) and (WIDTH+1) bits represent the top 2 blocks of the 2x2 piece, the 1st and 2nd bits represent the lower 2 blocks of the 2x2 piece
 			state = Qlearning_iteration(state,piece); // Do a full Q-learning iteration for the current state and piece. Both the state and Q-table get updated
+			//printf("Game: %4d - Iter: %4d\n",game,i);
 		}
 		game++;
 		if(0==(game & (game-1)))  // if a power of 2 -> Print the game number + the height of that game (= performance measure)
