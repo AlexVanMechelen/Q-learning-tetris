@@ -198,6 +198,14 @@ unsigned crank(unsigned state,unsigned piece,unsigned last_hole_idx = (1<<WIDTH)
 		row_FIFO_queue_below_best.pop(); // Remove them from the temporary FIFO queue
 	}
 
+	for (int l=0; l<loss; l++) // Loop for loss number of times
+	{
+		if(row_LIFO_stack_above.size()) // If there are entries in the LIFO above stack
+		{
+			row_LIFO_stack_above.pop(); // Remove these rows from the real LIFO above stack because they are already used in the current 'state'
+		}
+	}
+
 	while (row_LIFO_stack_above.size()) // While there are entries in the above LIFO stack
 	{
 		row_LIFO_stack_below.push(row_LIFO_stack_above.top()); // Add them to the main below LIFO stack
