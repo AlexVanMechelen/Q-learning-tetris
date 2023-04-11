@@ -185,6 +185,7 @@ unsigned crank(unsigned state,unsigned piece,unsigned last_hole_idx = (1<<WIDTH)
 				// printf("Tmp above stack size: %1d - l: %1d\n", row_LIFO_stack_above_two_tmp.size(), l);
 				// printf("State: %3d - Piece: %3d - a: %1d - r: %1d - Result state: %5d - New state: %5d\n",state,piece,a,r,TMP_BEFORE_STATE_N,n);
 				// exit(-1);
+				above_row_completion_flag += 1; // Increase the counter that keeps track of how many rows were shifted up (number of extra rows above the normal 2)
 				extra_row_one = 0;
 				if(row_LIFO_stack_above_two_tmp.size()) // If there are entries in the LIFO above tmp stack
 				{
@@ -243,11 +244,11 @@ unsigned crank(unsigned state,unsigned piece,unsigned last_hole_idx = (1<<WIDTH)
 		}
 		assert(n<(1<< 2*WIDTH)); // Throws an error if there's still part of a piece above row one, which should normally not be the case anymore
 		// if((l<loss)||(l==loss && loss*-100 + gamma * Q[n] > best) ){
-		if(l*-100 + num_completed_rows_tmp*100 + gamma * Q[n] > best) // If the discount factor times the Q value of this new position (score for how good this new position is) MINOUS a punishment for the number of rows lost (l*-100) is bigger than the current best score for a next state
+		if(l*-100 + (num_completed_rows_tmp+above_row_completion_flag)*100 + gamma * Q[n] > best) // If the discount factor times the Q value of this new position (score for how good this new position is) MINOUS a punishment for the number of rows lost (l*-100) is bigger than the current best score for a next state
 		{
 			t=n; // Save the current best next state
 			loss = l; // Save the loss of the current best next state
-			best = loss*-100 + num_completed_rows_tmp*100 + gamma * Q[t]; // Update the current best score for a next state
+			best = loss*-100 + (num_completed_rows_tmp+above_row_completion_flag)*100 + gamma * Q[t]; // Update the current best score for a next state
 			row_FIFO_queue_below_best = duplicateQueue(row_FIFO_queue_below_tmp); // Save a duplicate of this move's below FIFO queue
 		}
 	  }
