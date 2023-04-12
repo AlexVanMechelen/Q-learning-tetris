@@ -8,6 +8,8 @@
 #include <stdlib.h>
 #include <assert.h>
 
+bool DEBUG_MODE = false; // Used to visualize the game
+
 #define WIDTH (6)     // game width (height = 2)
 float gamma = 0.80f;  // discount factor
 float alpha = 0.02f;  // learning rate
@@ -265,8 +267,7 @@ unsigned crank(unsigned state,unsigned piece,unsigned last_hole_idx = (1<<WIDTH)
 		row_LIFO_stack_below.push(row_FIFO_queue_below_best.front()); // Add them to the main below LIFO stack
 		row_FIFO_queue_below_best.pop(); // Remove them from the temporary FIFO queue
 	}
-
-	for (int l=0; l<num_rows_from_above; l++) // Loop for num_rows_from_above number of times
+	for (int l=0; l<(row_LIFO_stack_above_two.size() - num_rows_from_above); l++) // Loop for num_rows_from_above number of times
 	{
 		if(row_LIFO_stack_above.size()) // If there are entries in the LIFO above stack
 		{
@@ -306,7 +307,7 @@ unsigned crank(unsigned state,unsigned piece,unsigned last_hole_idx = (1<<WIDTH)
 		state = state | new_top_row<<WIDTH; // Add the new top row to the state
 	}
 
-	height = row_LIFO_stack_below.size() + 2;
+	height = row_LIFO_stack_below.size() + ((state & ((1<<WIDTH)-1)) > 0) + (state > ((1<<WIDTH)-1)); // Set game height to the current LIFO stack below size + the height of the state
 
 	return state;
 }
@@ -419,20 +420,12 @@ int main(int,char**)
 		{
 			unsigned piece = ((rand()%4)<<WIDTH) +  (rand()%3)+1; // Each piece consisits of a (WIDTH+2)-bit number.The (WIDTH+2) and (WIDTH+1) bits represent the top 2 blocks of the 2x2 piece, the 1st and 2nd bits represent the lower 2 blocks of the 2x2 piece
 			state = Qlearning_iteration(state,piece); // Do a full Q-learning iteration for the current state and piece. Both the state and Q-table get updated
-			printf("Game: %4d - Iter: %4d - Height: %4d\n",game,i,height);
-			printGame(state);
-			system("pause");
-			// if (i == 1691)
-			// {
-			// 	printf("Game: %4d - Iter: %4d - Height: %4d\n",game,i,height);
-			// 	printGame(state);
-			// }
-			// if (i == 1692)
-			// {
-			// 	printf("Game: %4d - Iter: %4d - Height: %4d\n",game,i,height);
-			// 	printGame(state);
-			// 	exit(-1);
-			// }
+			if (DEBUG_MODE)
+			{
+				printf("Game: %4d - Iter: %4d - Height: %4d\n",game,i,height); // Print game info
+				printGame(state); // Print game
+				while (std::cin.get() != '\n'); // Wait for enter press
+			}
 		}
 		empty_stack(row_LIFO_stack_below); // Empty the game LIFO stack
 		game++;
