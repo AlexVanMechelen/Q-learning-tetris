@@ -1,1 +1,1 @@
-g++ .\tetris-Qlearning.cpp -o tetris-Qlearning.exe
+g++ .\tetris-Qlearning.cpp -o a.exe
