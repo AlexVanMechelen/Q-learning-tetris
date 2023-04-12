@@ -254,7 +254,7 @@ unsigned crank(unsigned state,unsigned piece,unsigned last_hole_idx = (1<<WIDTH)
 		{
 			t=n; // Save the current best next state
 			loss = l; // Save the loss of the current best next state
-			best = loss*-100 + (num_completed_rows_tmp+above_row_completion_flag)*100 + gamma * Q[t]; // Update the current best score for a next state
+			best = loss*-100 + (num_completed_rows_tmp+above_row_completion_flag)*300 + gamma * Q[t]; // Update the current best score for a next state
 			row_FIFO_queue_below_best = duplicateQueue(row_FIFO_queue_below_tmp); // Save a duplicate of this move's below FIFO queue
 			num_rows_from_above = row_LIFO_stack_above_two_tmp.size(); // Keep track of how many rows from above are used in the best solution to later delete them from the real above LIFO stack
 			played_piece = rotate(piece,r)<<a; // Save where the current piece is played
@@ -380,14 +380,10 @@ void printPiece(unsigned piece)
 	printRow(bottom_row);
 }
 
-void printGame(unsigned state, bool clearscreen = false, unsigned height = 999999) // Prints out the game to the terminal
+void printGame(unsigned state, unsigned height = 999999) // Prints out the game to the terminal
 {
 	assert(height >= 2); // At least the state should be printed
 	assert((!row_LIFO_stack_above.size())); // There may not be any rows stored above when printing the game
-	if (clearscreen)
-	{
-		system("cls"); // Clear screen
-	}
 	printPiece(played_piece);
 	std::cout << "------------\n"; // Print separator between piece and game
 	printPiece(state);
@@ -416,6 +412,7 @@ int main(int,char**)
 		srand(0);
 		height=0; // This variable keeps track of how heigh the pieces stack up (The game only considers a 2xWIDTH playable game space. If a new piece gets placed in a way that the game can't fit in this 2xWIDTH space and (an) incompleted row(s) get(s) pushed downward, height increases)
 		unsigned state =0; // Keeps track of the board state (can take on values from 0 to 2^(2*WIDTH))
+		//if (game == 127) { DEBUG_MODE = true; }
 		for(int i=0;i<10000;i++) // 10000 pieces get added before the game is over
 		{
 			unsigned piece = ((rand()%4)<<WIDTH) +  (rand()%3)+1; // Each piece consisits of a (WIDTH+2)-bit number.The (WIDTH+2) and (WIDTH+1) bits represent the top 2 blocks of the 2x2 piece, the 1st and 2nd bits represent the lower 2 blocks of the 2x2 piece
@@ -423,7 +420,7 @@ int main(int,char**)
 			if (DEBUG_MODE)
 			{
 				printf("Game: %4d - Iter: %4d - Height: %4d\n",game,i,height); // Print game info
-				printGame(state); // Print game
+				printGame(state, 15); // Print game
 				while (std::cin.get() != '\n'); // Wait for enter press
 			}
 		}
