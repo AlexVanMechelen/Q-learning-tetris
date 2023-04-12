@@ -18,12 +18,13 @@ float alpha = 0.02f;  // learning rate
 
 const int NUM_STATES = 1<<(WIDTH+WIDTH);    // Number of states
 const int NUM_PIECES = 195;    				// Number of pieces
-const int NUM_ROTATIONS = 3; // Number of rotations
+const int NUM_COL = WIDTH-2;                // Number of columns
+const int NUM_ROTATIONS = 3;                // Number of rotations
 const double EPSILON = 0.1;                 // Epsilon for epsilon-greedy exploration
 
 std::vector<std::vector<std::vector<std::vector<double>>>> qValues(NUM_STATES,
 std::vector<std::vector<std::vector<double>>>(NUM_PIECES,
-std::vector<std::vector<double>>(WIDTH,
+std::vector<std::vector<double>>(NUM_COL,
 std::vector<double>(NUM_ROTATIONS, 0.0))));  // Initialize the Q-values to zeros 
 
 float Q[1<<(WIDTH+WIDTH)];  // utility value -> array of size 2^(2*WIDTH) -> One utility value per possible board state
@@ -42,6 +43,7 @@ void empty_queue(queue<unsigned>& q) { // Function used to empty the 'row_FIFO_q
     queue<unsigned> empty; // Initialize an empty queue
     q.swap(empty); // Swap the input queue with the empty one
 }
+
 
 void empty_stack(stack<unsigned>& q) {
     stack<unsigned> empty; // Initialize an empty stack
@@ -160,7 +162,7 @@ void chooseAction(const std::vector<std::vector<double>>& qValues, double epsilo
   if (dis(gen) > epsilon) {
     bestcol = 0;
 	bestrot = 0;
-    for (int i = 0; i < WIDTH; i++) {
+    for (int i = 0; i < NUM_COL; i++) {
 		for (int j = 0; j < NUM_ROTATIONS; j++) {
       		if (qValues[i][j] > qValues[bestcol][bestrot]) {
         	bestcol = i;
@@ -172,7 +174,7 @@ void chooseAction(const std::vector<std::vector<double>>& qValues, double epsilo
   else 
   {
 	// random position and rotation
-    bestcol =  dis(gen) * WIDTH;
+    bestcol =  dis(gen) * NUM_COL;
 	bestrot = dis(gen) * NUM_ROTATIONS; 
   }
   std::cout<< "best col is " << bestcol << " and best rot is " << bestrot <<std::endl; 
@@ -205,12 +207,15 @@ unsigned crank(unsigned state,unsigned piece, unsigned next_piece, unsigned last
 	stack<unsigned> row_LIFO_stack_above_two_tmp; // LIFO stack that keeps track of the rows above the current inspected 2xWIDTH frame and gets used in the crank function
 	row_LIFO_stack_above_two_tmp = duplicateStack(row_LIFO_stack_above_two); // Fill the tmp LIFO stack that keeps track of the two rows above the current 2xWIDTH frame in 'state'
 	num_completed_rows_tmp = 0; // Set tracker of number of completed rows in this play to zero
+
+
 	unsigned newstate = result(state,a,rotate(piece,r)); // Return the game board that would result from placing 'piece' at horizontal position 'a' with rotation 'r'. Can have up to height 4 
 	
 	int l=0; // Variable to keep track of how many rows were shifted up (number of extra rows above the normal 2)
 	int collision=0; // Bool that keeps track if there's a collision
 	int above_row_completion_flag=0; // Will be used to keep track if playing the piece in the best way completes 
 	unsigned TMP_BEFORE_STATE_N = newstate;
+	
 	while((!collision) && newstate>>(2*WIDTH)) // While no collision && there is part of a piece above row one
 	{
 		unsigned bottom_row = newstate & ((1<<WIDTH)-1); // Extract the bottom row
@@ -351,7 +356,7 @@ unsigned crank(unsigned state,unsigned piece, unsigned next_piece, unsigned last
 
 	//find action maximising the q_value of the new state
 	double maxNextQValue = 0.0;
-      for (int i = 0; i < WIDTH; i++) {
+      for (int i = 0; i < NUM_COL; i++) {
 		for (int j = 0; j < NUM_ROTATIONS; j++) {
         	if (qValues[state][next_piece][i][j] > maxNextQValue) {
           		maxNextQValue = qValues[state][next_piece][i][j];
