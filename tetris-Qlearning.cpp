@@ -3,6 +3,7 @@
 #include <stack>
 #include <queue>
 #include <bitset>
+#include <iostream>
 #include <stdio.h>
 #include <stdlib.h>
 #include <assert.h>
@@ -337,7 +338,7 @@ unsigned Qlearning_iteration(unsigned state, unsigned piece, unsigned last_hole_
 	unsigned hole_idx = find_holes(state, piece, last_hole_idx); // Find holes that can be reached from the hole on the layer above (last_hole_idx) and save them
 	while(hole_idx && row_LIFO_stack_below.size()) // While there are still holes present && there are saved rows below the current 2xWIDTH frame 'state'
 	{
-		unsigned top_row = state>>WIDTH & ((1<<WIDTH)-1); // Extract the top row
+		unsigned top_row = state>>WIDTH; // Extract the top row
 		row_LIFO_stack_above.push(top_row); // Push the top row to the above LIFO stack
 		state = (state<<WIDTH & ((1<<WIDTH+WIDTH)-1)); // Move state one row up and forget the top row
 		state = state | row_LIFO_stack_below.top(); // Add old row from below off the below LIFO stack
@@ -348,6 +349,44 @@ unsigned Qlearning_iteration(unsigned state, unsigned piece, unsigned last_hole_
 	row_LIFO_stack_above_two = copy_top_two_from_LIFO_stack(row_LIFO_stack_above);
 	unsigned next_state = crank(state, piece, last_hole_idx); // Use the last_hole_idx to see where the pieces could be coming from
 	return next_state;
+}
+
+void printRow(unsigned row) // Prints out one row to stdout
+{
+	bitset<WIDTH> bits(row);
+	for (int i = WIDTH - 1; i >= 0; i--) {
+		char* block = "  ";
+		if (bits[i])
+		{
+			block = "[]";
+		}
+		std::cout << block;
+	}
+	std::cout << '\n';
+	return;
+}
+
+void printGame(unsigned state, unsigned height = 999999) // Prints out the game to the terminal
+{
+	assert(height >= 2); // At least the state should be printed
+	assert((!row_LIFO_stack_above.size())); // There may not be any rows stored above when printing the game
+	unsigned top_row = state>>WIDTH; // Extract the top row
+	unsigned bottom_row = state & ((1<<WIDTH)-1); // Extract the bottom row
+	printRow(top_row);
+	printRow(bottom_row);
+	stack<unsigned> temp_stack;
+    while (height-2 > 0 && !row_LIFO_stack_below.empty()) {
+        unsigned row = row_LIFO_stack_below.top();
+        row_LIFO_stack_below.pop();
+        temp_stack.push(row);
+        printRow(row);
+        height--;
+    }
+    while (!temp_stack.empty()) {
+        row_LIFO_stack_below.push(temp_stack.top());
+        temp_stack.pop();
+    }
+	return;
 }
 
 int main(int,char**)
@@ -365,6 +404,17 @@ int main(int,char**)
 			unsigned piece = ((rand()%4)<<WIDTH) +  (rand()%3)+1; // Each piece consisits of a (WIDTH+2)-bit number.The (WIDTH+2) and (WIDTH+1) bits represent the top 2 blocks of the 2x2 piece, the 1st and 2nd bits represent the lower 2 blocks of the 2x2 piece
 			state = Qlearning_iteration(state,piece); // Do a full Q-learning iteration for the current state and piece. Both the state and Q-table get updated
 			//printf("Game: %4d - Iter: %4d - Height: %4d\n",game,i,height);
+			if (i == 1691)
+			{
+				printf("Game: %4d - Iter: %4d - Height: %4d\n",game,i,height);
+				printGame(state);
+			}
+			if (i == 1692)
+			{
+				printf("Game: %4d - Iter: %4d - Height: %4d\n",game,i,height);
+				printGame(state);
+				exit(-1);
+			}
 		}
 		empty_stack(row_LIFO_stack_below); // Empty the game LIFO stack
 		game++;
