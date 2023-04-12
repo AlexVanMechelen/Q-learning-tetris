@@ -426,6 +426,10 @@ int main(int,char**)
 				printGame(state); // Print game
 				while (std::cin.get() != '\n'); // Wait for enter press
 			}
+			if (game == 128)
+			{
+				DEBUG_MODE = true;
+			}
 		}
 		empty_stack(row_LIFO_stack_below); // Empty the game LIFO stack
 		game++;
