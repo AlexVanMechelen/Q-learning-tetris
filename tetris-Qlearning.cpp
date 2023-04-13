@@ -20,7 +20,7 @@ const int NUM_STATES = 1<<(WIDTH+WIDTH)+1;    // Number of states
 const int NUM_PIECES = 195+1;    				// Number of pieces
 const int NUM_COL = WIDTH-1+1;                // Number of columns
 const int NUM_ROTATIONS = 3+1;                // Number of rotations
-const double EPSILON = 0.1;                 // Epsilon for epsilon-greedy exploration
+double EPSILON = 0;                 // Epsilon for epsilon-greedy exploration
 
 std::vector<std::vector<std::vector<std::vector<double>>>> qValues(NUM_STATES,
 std::vector<std::vector<std::vector<double>>>(NUM_PIECES,
@@ -152,32 +152,32 @@ std::queue<T> duplicateQueue(std::queue<T> firstQueue) {
     return secondQueue;
 }
 
-void chooseAction(const std::vector<std::vector<double>>& qValues, double epsilon, int& bestcol, int& bestrot) {
+int EpsilonGreedyExplorationMethod(int state, int piece,std::vector<int> cols, std::vector<int> rots) {
   std::random_device rd;
   std::mt19937 gen(rd());
   std::uniform_real_distribution<> dis(0, 1);
+
+  assert(!cols.size() == 0);
   
   // Choose the action with the highest Q-value with probability (1-epsilon)
   // Choose a random action with probability epsilon
-  if (dis(gen) > epsilon) {
-    bestcol = 0;
-	bestrot = 0;
-    for (int i = 0; i < NUM_COL; i++) {
-		for (int j = 0; j < NUM_ROTATIONS; j++) {
-      		if (qValues[i][j] > qValues[bestcol][bestrot]) {
-        	bestcol = i;
-			bestrot = j;
+  int best = 0;
+  if (dis(gen) > EPSILON) {
+	// greedy action
+	for (int i = 0; i < cols.size(); i++) {
+		if (DEBUG_MODE) std::cout << "qValues[state = " << state << "][piece = " << piece << "][col = " << cols[i] << "][rot = " << rots[i]<< "] = " << qValues[state][piece][cols[i]][rots[i]] << std::endl;
+		if (qValues[state][piece][cols[i]][rots[i]] > qValues[state][piece][cols[best]][rots[best]]) {
+			best = i;
 		}
-      }
-    }
+	}
   } 
   else 
   {
 	// random position and rotation
-    bestcol =  dis(gen) * NUM_COL;
-	bestrot = dis(gen) * NUM_ROTATIONS; 
+    best =  dis(gen) * cols.size();
+	if (DEBUG_MODE) std::cout << "random action" << std::endl;
   }
-  std::cout<< "best col is " << bestcol << " and best rot is " << bestrot <<std::endl; 
+  return best;
 }
 
 unsigned crank(unsigned state,unsigned piece, unsigned next_piece, unsigned last_hole_idx = (1<<WIDTH)-1)
@@ -197,13 +197,23 @@ unsigned crank(unsigned state,unsigned piece, unsigned next_piece, unsigned last
 
 	unsigned close_hole_idx = last_hole_idx | last_hole_idx<<1 | last_hole_idx>>1; // Get all idx in which a new piece can end up
 	// find the best next state
-	float best =-999999999.9f; // Initialize best next state to -Inf (any state is better)
+	int best = 0;
+	int best2 = -9999999;
 	unsigned t = 0;
 	int loss=9999; // Number of rows added to height when they're 'pushed down' (2xWIDTH board 'moves up')
 	int num_rows_from_above=0; // Counter that keeps track of how many rows from above are used by the best solution
 	queue<unsigned> row_FIFO_queue_below_best; // FIFO queue that keeps track of the rows beneath the top 2 ones. Stores the FIFO queue for the current best next state
 	queue<unsigned> row_FIFO_queue_below_tmp; // FIFO queue that keeps track of the rows beneath the top 2 ones. Stores the FIFO queue for one current next state evaluation
 	
+	std::vector<int> next_states; // Vector to store the next states
+	std::vector<int> cols; // Vector to store the best columns
+	std::vector<int> rots; // Vector to store the best rotations
+	std::vector<int> above_row_completions; // Vector to store the above row completions
+	std::vector<int> num_completed_rows; // Vector to store the number of completed rows
+	std::vector<int> losses; // Vector to store the losses of the best next states
+	std::vector<queue<unsigned>> row_FIFO_queue_below_bests; // Vector to store the best below FIFO queues
+	std::vector<int> num_rows_from_aboves; // Vector to store the number of rows from above used in the best solution
+
 	for(int a=0;a<WIDTH-1;a++) // Loop over all horizontal positions a
 	{
       unsigned pos = (1<<a); // Get insert position
@@ -307,9 +317,20 @@ unsigned crank(unsigned state,unsigned piece, unsigned next_piece, unsigned last
 		assert(n<(1<< 2*WIDTH)); // Throws an error if there's still part of a piece above row one, which should normally not be the case anymore
 		// if((l<loss)||(l==loss && loss*-100 + gamma * Q[n] > best) ){
 
-		// save the action leading to the highest Q value
-		if (DEBUG_MODE) std::cout << "qValues[state = " << state << "][piece = " << piece << "][col = " << a << "][rot = " << r << "] = " << qValues[state][piece][a][r] << std::endl;
-		if(qValues[state][piece][a][r] > best) // If the discount factor times the Q value of this new position (score for how good this new position is) MINOUS a punishment for the number of rows lost (l*-100) is bigger than the current best score for a next state
+		// save the actions and the next state
+
+		next_states.push_back(n); // Vector to store the next states
+		cols.push_back(a); // Vector to store the best columns
+		rots.push_back(r); // Vector to store the best rotations
+		above_row_completions.push_back(above_row_completion_flag); // Vector to store the above row completions
+		num_completed_rows.push_back(num_completed_rows_tmp); // Vector to store the number of completed rows
+		losses.push_back(l); // Vector to store the losses of the best next states
+		row_FIFO_queue_below_bests.push_back(duplicateQueue(row_FIFO_queue_below_tmp)); // Vector to store the best below FIFO queues
+		num_rows_from_aboves.push_back(row_LIFO_stack_above_two_tmp.size()); // Vector to store the number of rows from above used in the best solution
+		
+		if (DEBUG_MODE) std::cout << "first qValues[state = " << state << "][piece = " << piece << "][col = " << a << "][rot = " << r << "] = " << qValues[state][piece][a][r] << std::endl;
+		/*
+		if(qValues[state][piece][a][r] > best2) // If the discount factor times the Q value of this new position (score for how good this new position is) MINOUS a punishment for the number of rows lost (l*-100) is bigger than the current best score for a next state
 		{
 			// Save the current best next state
 			t=n;
@@ -318,21 +339,34 @@ unsigned crank(unsigned state,unsigned piece, unsigned next_piece, unsigned last
 			above_row_completion = above_row_completion_flag;
 			number_of_completed_rows = num_completed_rows_tmp;
 			loss = l; // Save the loss of the current best next state
-			best = qValues[state][piece][a][r]; // Update the current best score for a next state
+			best2 = qValues[state][piece][a][r]; // Update the current best score for a next state
 			row_FIFO_queue_below_best = duplicateQueue(row_FIFO_queue_below_tmp); // Save a duplicate of this move's below FIFO queue
 			num_rows_from_above = row_LIFO_stack_above_two_tmp.size(); // Keep track of how many rows from above are used in the best solution to later delete them from the real above LIFO stack
 			played_piece = rotate(piece,r)<<a; // Save where the current piece is played
 		}
+		*/
 	  }
-	} // At the end of this loop, the state with the highest 'best' score will still be saved in "bestcol" & "bestrot" and its loss in 'loss'
-	/*
-	if (dis(gen) < EPSILON) {
-		// random position and rotation
-		bestcol =  dis(gen) * NUM_COL;
-		bestrot = dis(gen) * NUM_ROTATIONS; 
-		if (DEBUG_MODE) std::cout<< "RANDOM ACTION" <<std::endl; 
-  	}
-	*/
+	} 
+
+	if (next_states.size() == 0) // If there are no next states 
+	{
+		if (DEBUG_MODE) std::cout << "No next states" << std::endl;
+		return state; // Go to the next iteration (not even consider it as a next state)
+	}
+
+	best = EpsilonGreedyExplorationMethod(state,  piece, cols, rots); // get the action with the exploration function
+
+	t = next_states[best]; 
+	bestcol = cols[best]; 
+	bestrot = rots[best];
+	above_row_completion = above_row_completions[best];
+	number_of_completed_rows = num_completed_rows[best];
+	loss = losses[best]; // Save the loss of the current best next state
+	row_FIFO_queue_below_best = row_FIFO_queue_below_bests[best]; // Save a duplicate of this move's below FIFO queue
+	num_rows_from_above = num_rows_from_aboves[best]; // Keep track of how many rows from above are used in the best solution to later delete them from the real above LIFO stack
+	played_piece = rotate(piece,bestrot)<<bestcol; // Save where the current piece is played
+
+
 	if (DEBUG_MODE) std::cout<< "best col is " << bestcol << " and best rot is " << bestrot <<std::endl; 
 
 	while(row_FIFO_queue_below_best.size()) // While there are entries in the below_best FIFO queue
@@ -355,24 +389,16 @@ unsigned crank(unsigned state,unsigned piece, unsigned next_piece, unsigned last
 	//find action maximising the q_value of the new state
 	
 	double maxNextQValue = -9999999999999;
-      for (int i = 0; i < NUM_COL; i++) {
-		for (int j = 0; j < NUM_ROTATIONS; j++) {
-        	if (qValues[state][next_piece][i][j] > maxNextQValue) {
-          		maxNextQValue = qValues[t][next_piece][i][j];
-			}
-        }
-      }
-      qValues[state][piece][bestcol][bestrot] += alpha * (reward + gamma * maxNextQValue - qValues[state][piece][bestcol][bestrot]);
-	  if (DEBUG_MODE) std::cout << "qValues[state = " << state << "][piece = " << piece << "][bestcol = " << bestcol << "][bestrot = " << bestrot << "] = " << qValues[state][piece][bestcol][bestrot] << std::endl;
-	
+	for (int i = 0; i < NUM_COL; i++) {
+	for (int j = 0; j < NUM_ROTATIONS; j++) {
+		if (qValues[state][next_piece][i][j] > maxNextQValue) {
+			maxNextQValue = qValues[t][next_piece][i][j];
+		}
+	}
+	}
+	qValues[state][piece][bestcol][bestrot] += alpha * (reward + gamma * maxNextQValue - qValues[state][piece][bestcol][bestrot]);
+	if (DEBUG_MODE) std::cout << "qValues[state = " << state << "][piece = " << piece << "][bestcol = " << bestcol << "][bestrot = " << bestrot << "] = " << qValues[state][piece][bestcol][bestrot] << std::endl;
 
-	//printf("%4d\n",Q[state]);
-
-	//if(loss)printf("Lost %d rows\n",loss);
-	//Q[state] = (1-alpha) * Q[state] + alpha * best; // update Q[state] based on result from state s to t 
-	
-	// average learning rule:  (it was useless)
-	//Q[state] = (P[state] * Q[state] + alpha * best)/(1+P[state]);
 	P[state] ++; // counter (not used)
 
 	state = t;  // move to new state;
@@ -511,8 +537,30 @@ int main(int,char**)
 		}
 		empty_stack(row_LIFO_stack_below); // Empty the game LIFO stack
 		game++;
-		if(0==(game & (game-1)))  // if a power of 2 -> Print the game number + the height of that game (= performance measure)
-			printf("%4d %4d %s\n",game,height,(explore)?"learning":"");
+		 // if a power of 2 -> Print the game number + the height of that game (= performance measure)
+		if(0==(game & (game-1))){
+			// number of calculated q values
+			int number_of_calculated_q_values = 0;
+			for (int i = 0; i < NUM_STATES; i++)
+			{
+				for (int j = 0; j < NUM_PIECES; j++)
+				{
+					for (int k = 0; k < NUM_COL; k++)
+					{
+						for (int l = 0; l < NUM_ROTATIONS; l++)
+						{
+							if (qValues[i][j][k][l] != 0) number_of_calculated_q_values++;
+						}
+					}
+				}
+			}
+			printf("%4d %4d %4f %4d\n",game,height,EPSILON, number_of_calculated_q_values);
+		}
+
+
+		// Decay epsilon
+		if (EPSILON > 0.001) EPSILON *= 0.99; else EPSILON = 0;
+
 		if (game == 1024)
 		{
 			//DEBUG_MODE = true;
