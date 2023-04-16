@@ -1,1 +1,1 @@
-g++ .\tetris-Qlearning.cpp -o tetris-Qlearning.exe
+g++ .\tetris-brute-force.cpp -o a.exe
