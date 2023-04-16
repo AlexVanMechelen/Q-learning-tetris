@@ -7,12 +7,25 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <assert.h>
+#include <vector>
+#include <random>
 
 bool DEBUG_MODE = false; // Used to visualize the game
 
 #define WIDTH (6)     // game width (height = 2)
 float gamma = 0.80f;  // discount factor
 float alpha = 0.02f;  // learning rate
+
+const int NUM_STATES = 1<<(WIDTH+WIDTH)+1;    // Number of states
+const int NUM_PIECES = 195+1;    				// Number of pieces
+const int NUM_COL = WIDTH-1+1;                // Number of columns
+const int NUM_ROTATIONS = 3+1;                // Number of rotations
+double EPSILON = 0;                 // Epsilon for epsilon-greedy exploration
+
+std::vector<std::vector<std::vector<std::vector<double>>>> qValues(NUM_STATES,
+std::vector<std::vector<std::vector<double>>>(NUM_PIECES,
+std::vector<std::vector<double>>(NUM_COL,
+std::vector<double>(NUM_ROTATIONS, 0.0))));  // Initialize the Q-values to zeros 
 
 float Q[1<<(WIDTH+WIDTH)];  // utility value -> array of size 2^(2*WIDTH) -> One utility value per possible board state
 int   P[1<<(WIDTH+WIDTH)];  // counter (not really needed)
@@ -30,6 +43,7 @@ void empty_queue(queue<unsigned>& q) { // Function used to empty the 'row_FIFO_q
     queue<unsigned> empty; // Initialize an empty queue
     q.swap(empty); // Swap the input queue with the empty one
 }
+
 
 void empty_stack(stack<unsigned>& q) {
     stack<unsigned> empty; // Initialize an empty stack
@@ -138,16 +152,68 @@ std::queue<T> duplicateQueue(std::queue<T> firstQueue) {
     return secondQueue;
 }
 
-unsigned crank(unsigned state,unsigned piece,unsigned last_hole_idx = (1<<WIDTH)-1)
+int EpsilonGreedyExplorationMethod(int state, int piece,std::vector<int> cols, std::vector<int> rots) {
+  std::random_device rd;
+  std::mt19937 gen(rd());
+  std::uniform_real_distribution<> dis(0, 1);
+
+  assert(!cols.size() == 0);
+  
+  // Choose the action with the highest Q-value with probability (1-epsilon)
+  // Choose a random action with probability epsilon
+  int best = 0;
+  if (dis(gen) > EPSILON) {
+	// greedy action
+	for (int i = 0; i < cols.size(); i++) {
+		if (DEBUG_MODE) std::cout << "qValues[state = " << state << "][piece = " << piece << "][col = " << cols[i] << "][rot = " << rots[i]<< "] = " << qValues[state][piece][cols[i]][rots[i]] << std::endl;
+		if (qValues[state][piece][cols[i]][rots[i]] > qValues[state][piece][cols[best]][rots[best]]) {
+			best = i;
+		}
+	}
+  } 
+  else 
+  {
+	// random position and rotation
+    best =  dis(gen) * cols.size();
+	if (DEBUG_MODE) std::cout << "random action" << std::endl;
+  }
+  return best;
+}
+
+unsigned crank(unsigned state,unsigned piece, unsigned next_piece, unsigned last_hole_idx = (1<<WIDTH)-1)
 {
+	std::random_device rd;
+  	std::mt19937 gen(rd());
+  	std::uniform_real_distribution<> dis(0, 1);
+
+	// We have our state (state,piece), now we need to determine our action (position, rotation)
+	// With Greedy we'll take the action that maximises the Q-value
+
+	int bestcol;
+	int bestrot;
+
+	int above_row_completion ;
+	int number_of_completed_rows;
+
 	unsigned close_hole_idx = last_hole_idx | last_hole_idx<<1 | last_hole_idx>>1; // Get all idx in which a new piece can end up
 	// find the best next state
-	float best =-999999999.9f; // Initialize best next state to -Inf (any state is better)
+	int best = 0;
+	int best2 = -9999999;
 	unsigned t = 0;
 	int loss=9999; // Number of rows added to height when they're 'pushed down' (2xWIDTH board 'moves up')
 	int num_rows_from_above=0; // Counter that keeps track of how many rows from above are used by the best solution
 	queue<unsigned> row_FIFO_queue_below_best; // FIFO queue that keeps track of the rows beneath the top 2 ones. Stores the FIFO queue for the current best next state
 	queue<unsigned> row_FIFO_queue_below_tmp; // FIFO queue that keeps track of the rows beneath the top 2 ones. Stores the FIFO queue for one current next state evaluation
+	
+	std::vector<int> next_states; // Vector to store the next states
+	std::vector<int> cols; // Vector to store the best columns
+	std::vector<int> rots; // Vector to store the best rotations
+	std::vector<int> above_row_completions; // Vector to store the above row completions
+	std::vector<int> num_completed_rows; // Vector to store the number of completed rows
+	std::vector<int> losses; // Vector to store the losses of the best next states
+	std::vector<queue<unsigned>> row_FIFO_queue_below_bests; // Vector to store the best below FIFO queues
+	std::vector<int> num_rows_from_aboves; // Vector to store the number of rows from above used in the best solution
+
 	for(int a=0;a<WIDTH-1;a++) // Loop over all horizontal positions a
 	{
       unsigned pos = (1<<a); // Get insert position
@@ -250,17 +316,58 @@ unsigned crank(unsigned state,unsigned piece,unsigned last_hole_idx = (1<<WIDTH)
 		}
 		assert(n<(1<< 2*WIDTH)); // Throws an error if there's still part of a piece above row one, which should normally not be the case anymore
 		// if((l<loss)||(l==loss && loss*-100 + gamma * Q[n] > best) ){
-		if(l*-100 + (num_completed_rows_tmp+above_row_completion_flag)*100 + gamma * Q[n] > best) // If the discount factor times the Q value of this new position (score for how good this new position is) MINOUS a punishment for the number of rows lost (l*-100) is bigger than the current best score for a next state
+
+		// save the actions and the next state
+
+		next_states.push_back(n); // Vector to store the next states
+		cols.push_back(a); // Vector to store the best columns
+		rots.push_back(r); // Vector to store the best rotations
+		above_row_completions.push_back(above_row_completion_flag); // Vector to store the above row completions
+		num_completed_rows.push_back(num_completed_rows_tmp); // Vector to store the number of completed rows
+		losses.push_back(l); // Vector to store the losses of the best next states
+		row_FIFO_queue_below_bests.push_back(duplicateQueue(row_FIFO_queue_below_tmp)); // Vector to store the best below FIFO queues
+		num_rows_from_aboves.push_back(row_LIFO_stack_above_two_tmp.size()); // Vector to store the number of rows from above used in the best solution
+		
+		if (DEBUG_MODE) std::cout << "first qValues[state = " << state << "][piece = " << piece << "][col = " << a << "][rot = " << r << "] = " << qValues[state][piece][a][r] << std::endl;
+		/*
+		if(qValues[state][piece][a][r] > best2) // If the discount factor times the Q value of this new position (score for how good this new position is) MINOUS a punishment for the number of rows lost (l*-100) is bigger than the current best score for a next state
 		{
-			t=n; // Save the current best next state
+			// Save the current best next state
+			t=n;
+			bestcol = a;
+			bestrot = r;
+			above_row_completion = above_row_completion_flag;
+			number_of_completed_rows = num_completed_rows_tmp;
 			loss = l; // Save the loss of the current best next state
-			best = loss*-100 + (num_completed_rows_tmp+above_row_completion_flag)*100 + gamma * Q[t]; // Update the current best score for a next state
+			best2 = qValues[state][piece][a][r]; // Update the current best score for a next state
 			row_FIFO_queue_below_best = duplicateQueue(row_FIFO_queue_below_tmp); // Save a duplicate of this move's below FIFO queue
 			num_rows_from_above = row_LIFO_stack_above_two_tmp.size(); // Keep track of how many rows from above are used in the best solution to later delete them from the real above LIFO stack
 			played_piece = rotate(piece,r)<<a; // Save where the current piece is played
 		}
+		*/
 	  }
-	} // At the end of this loop, the state with the highest 'best' score will still be saved in 't' and its loss in 'loss'
+	} 
+
+	if (next_states.size() == 0) // If there are no next states 
+	{
+		if (DEBUG_MODE) std::cout << "No next states" << std::endl;
+		return state; // Go to the next iteration (not even consider it as a next state)
+	}
+
+	best = EpsilonGreedyExplorationMethod(state,  piece, cols, rots); // get the action with the exploration function
+
+	t = next_states[best]; 
+	bestcol = cols[best]; 
+	bestrot = rots[best];
+	above_row_completion = above_row_completions[best];
+	number_of_completed_rows = num_completed_rows[best];
+	loss = losses[best]; // Save the loss of the current best next state
+	row_FIFO_queue_below_best = row_FIFO_queue_below_bests[best]; // Save a duplicate of this move's below FIFO queue
+	num_rows_from_above = num_rows_from_aboves[best]; // Keep track of how many rows from above are used in the best solution to later delete them from the real above LIFO stack
+	played_piece = rotate(piece,bestrot)<<bestcol; // Save where the current piece is played
+
+
+	if (DEBUG_MODE) std::cout<< "best col is " << bestcol << " and best rot is " << bestrot <<std::endl; 
 
 	while(row_FIFO_queue_below_best.size()) // While there are entries in the below_best FIFO queue
 	{
@@ -275,25 +382,24 @@ unsigned crank(unsigned state,unsigned piece,unsigned last_hole_idx = (1<<WIDTH)
 		}
 	}
 
-	//printf("%4d\n",Q[state]);
+	//get reward from reward function
+	double reward = loss*-100 + (number_of_completed_rows+above_row_completion)*500;
+	if (DEBUG_MODE) std::cout<< "reward is " << reward <<std::endl;
 
-	//if(loss)printf("Lost %d rows\n",loss);
-	Q[state] = (1-alpha) * Q[state] + alpha * best; // update Q[state] based on result from state s to t 
+	//find action maximising the q_value of the new state
 	
-	// average learning rule:  (it was useless)
-	//Q[state] = (P[state] * Q[state] + alpha * best)/(1+P[state]);
-	P[state] ++; // counter (not used)
-
-	if(explore) // Simulates a random action being taken and a random rotation. This is useless since we already iterated over all possibilies in the code here above. This is why eventually the author realized this and set explore=0
-	{
-		loss=0;
-		t = result(state,rand()%(WIDTH-1),rand()%4);
-		while(t>>(2*WIDTH)) 
-		{
-			t>>=WIDTH;
+	double maxNextQValue = -9999999999999;
+	for (int i = 0; i < NUM_COL; i++) {
+	for (int j = 0; j < NUM_ROTATIONS; j++) {
+		if (qValues[state][next_piece][i][j] > maxNextQValue) {
+			maxNextQValue = qValues[t][next_piece][i][j];
 		}
-		//state=(state+1)%(1<<(2*WIDTH));
 	}
+	}
+	qValues[state][piece][bestcol][bestrot] += alpha * (reward + gamma * maxNextQValue - qValues[state][piece][bestcol][bestrot]);
+	if (DEBUG_MODE) std::cout << "qValues[state = " << state << "][piece = " << piece << "][bestcol = " << bestcol << "][bestrot = " << bestrot << "] = " << qValues[state][piece][bestcol][bestrot] << std::endl;
+
+	P[state] ++; // counter (not used)
 
 	state = t;  // move to new state;
 
@@ -308,7 +414,7 @@ unsigned crank(unsigned state,unsigned piece,unsigned last_hole_idx = (1<<WIDTH)
 	}
 
 	height = row_LIFO_stack_below.size() + ((state & ((1<<WIDTH)-1)) > 0) + (state > ((1<<WIDTH)-1)); // Set game height to the current LIFO stack below size + the height of the state
-
+	
 	return state;
 }
 
@@ -339,7 +445,7 @@ unsigned find_holes(unsigned state,unsigned piece,unsigned last_hole_idx = (1<<W
 	return hole_idx;
 }
 
-unsigned Qlearning_iteration(unsigned state, unsigned piece, unsigned last_hole_idx = (1<<WIDTH)-1)
+unsigned Qlearning_iteration(unsigned state, unsigned piece, unsigned next_piece, unsigned last_hole_idx = (1<<WIDTH)-1)
 {
 	unsigned hole_idx = find_holes(state, piece, last_hole_idx); // Find holes that can be reached from the hole on the layer above (last_hole_idx) and save them
 	while(hole_idx && row_LIFO_stack_below.size()) // While there are still holes present && there are saved rows below the current 2xWIDTH frame 'state'
@@ -353,7 +459,7 @@ unsigned Qlearning_iteration(unsigned state, unsigned piece, unsigned last_hole_
 		hole_idx = find_holes(state, piece, last_hole_idx); // Find holes that can be reached from the hole on the layer above (last_hole_idx) and save them
 	} // By the end of this loop there are either no more holes OR we're at the bottom row
 	row_LIFO_stack_above_two = copy_top_two_from_LIFO_stack(row_LIFO_stack_above);
-	unsigned next_state = crank(state, piece, last_hole_idx); // Use the last_hole_idx to see where the pieces could be coming from
+	unsigned next_state = crank(state, piece, next_piece, last_hole_idx); // Use the last_hole_idx to see where the pieces could be coming from
 	return next_state;
 }
 
@@ -416,22 +522,49 @@ int main(int,char**)
 		srand(0);
 		height=0; // This variable keeps track of how heigh the pieces stack up (The game only considers a 2xWIDTH playable game space. If a new piece gets placed in a way that the game can't fit in this 2xWIDTH space and (an) incompleted row(s) get(s) pushed downward, height increases)
 		unsigned state =0; // Keeps track of the board state (can take on values from 0 to 2^(2*WIDTH))
-		for(int i=0;i<10000;i++) // 10000 pieces get added before the game is over
+		unsigned piece = ((rand()%4)<<WIDTH) +  (rand()%3)+1; // Each piece consisits of a (WIDTH+2)-bit number.The (WIDTH+2) and (WIDTH+1) bits represent the top 2 blocks of the 2x2 piece, the 1st and 2nd bits represent the lower 2 blocks of the 2x2 piece
+		for(int i=0;i<1000;i++) // 10000 pieces get added before the game is over
 		{
-			unsigned piece = ((rand()%4)<<WIDTH) +  (rand()%3)+1; // Each piece consisits of a (WIDTH+2)-bit number.The (WIDTH+2) and (WIDTH+1) bits represent the top 2 blocks of the 2x2 piece, the 1st and 2nd bits represent the lower 2 blocks of the 2x2 piece
-			state = Qlearning_iteration(state,piece); // Do a full Q-learning iteration for the current state and piece. Both the state and Q-table get updated
+			unsigned next_piece = ((rand()%4)<<WIDTH) +  (rand()%3)+1; // Each piece consisits of a (WIDTH+2)-bit number.The (WIDTH+2) and (WIDTH+1) bits represent the top 2 blocks of the 2x2 piece, the 1st and 2nd bits represent the lower 2 blocks of the 2x2 piece
+			state = Qlearning_iteration(state,piece,next_piece); // Do a full Q-learning iteration for the current state and piece. Both the state and Q-table get updated
 			if (DEBUG_MODE)
 			{
 				printf("Game: %4d - Iter: %4d - Height: %4d\n",game,i,height); // Print game info
 				printGame(state); // Print game
 				while (std::cin.get() != '\n'); // Wait for enter press
 			}
+			piece = next_piece;
 		}
 		empty_stack(row_LIFO_stack_below); // Empty the game LIFO stack
 		game++;
-		if(0==(game & (game-1)))  // if a power of 2 -> Print the game number + the height of that game (= performance measure)
-			printf("%4d %4d %s\n",game,height,(explore)?"learning":"");
+		 // if a power of 2 -> Print the game number + the height of that game (= performance measure)
+		if(0==(game & (game-1))){
+			// number of calculated q values
+			int number_of_calculated_q_values = 0;
+			for (int i = 0; i < NUM_STATES; i++)
+			{
+				for (int j = 0; j < NUM_PIECES; j++)
+				{
+					for (int k = 0; k < NUM_COL; k++)
+					{
+						for (int l = 0; l < NUM_ROTATIONS; l++)
+						{
+							if (qValues[i][j][k][l] != 0) number_of_calculated_q_values++;
+						}
+					}
+				}
+			}
+			printf("%4d %4d %4f %4d\n",game,height,EPSILON, number_of_calculated_q_values);
+		}
 
+
+		// Decay epsilon
+		if (EPSILON > 0.001) EPSILON *= 0.99; else EPSILON = 0;
+
+		if (game == 1024)
+		{
+			//DEBUG_MODE = true;
+		}
 	}
 	return 0;
 }
