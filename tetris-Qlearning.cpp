@@ -12,20 +12,25 @@
 
 bool DEBUG_MODE = false; // Used to visualize the game
 
-#define WIDTH (6)     // game width (height = 2)
-float gamma = 0.80f;  // discount factor
-float alpha = 0.02f;  // learning rate
+#define WIDTH (6)		// game width (height = 2)
+float gamma = 0.80f;	// discount factor
+float alpha = 0.02f;	// learning rate
 
-const int NUM_STATES = 1<<(WIDTH+WIDTH)+1;    // Number of states
-const int NUM_PIECES = 195+1;    				// Number of pieces
-const int NUM_COL = WIDTH-1+1;                // Number of columns
-const int NUM_ROTATIONS = 3+1;                // Number of rotations
-double EPSILON = 0;                 // Epsilon for epsilon-greedy exploration
+const int NUM_STATES = 1<<(WIDTH+WIDTH)+1;	// Number of states
+const int NUM_PIECES = 195+1;				// Number of pieces
+const int NUM_COL = WIDTH-1+1;				// Number of columns
+const int NUM_ROTATIONS = 3+1;				// Number of rotations
+double EPSILON = 0.1;							// Epsilon for epsilon-greedy exploration
 
 std::vector<std::vector<std::vector<std::vector<double>>>> qValues(NUM_STATES,
 std::vector<std::vector<std::vector<double>>>(NUM_PIECES,
 std::vector<std::vector<double>>(NUM_COL,
 std::vector<double>(NUM_ROTATIONS, 0.0))));  // Initialize the Q-values to zeros 
+
+std::vector<std::vector<std::vector<std::vector<long>>>> N(NUM_STATES,
+std::vector<std::vector<std::vector<long>>>(NUM_PIECES,
+std::vector<std::vector<long>>(NUM_COL,
+std::vector<long>(NUM_ROTATIONS, 0))));  // Initialize N to zeros; keeps track of amount of times a state action pair has been explored; used by the SimpleExplorationMethod
 
 float Q[1<<(WIDTH+WIDTH)];  // utility value -> array of size 2^(2*WIDTH) -> One utility value per possible board state
 int   P[1<<(WIDTH+WIDTH)];  // counter (not really needed)
@@ -152,7 +157,37 @@ std::queue<T> duplicateQueue(std::queue<T> firstQueue) {
     return secondQueue;
 }
 
-int EpsilonGreedyExplorationMethod(int state, int piece,std::vector<int> cols, std::vector<int> rots) {
+// Identity exploration method. The agent will always take the action that maximizes the Q-value.
+int IdentityExplorationMethod(int state, int piece,std::vector<int> cols, std::vector<int> rots)
+{
+	assert(!cols.size() == 0);
+	int best = 0;
+	// Look for action that maximizes the Q-value
+	for (int i = 0; i < cols.size(); i++) {
+		//if (DEBUG_MODE) std::cout << "qValues[state = " << state << "][piece = " << piece << "][col = " << cols[i] << "][rot = " << rots[i]<< "] = " << qValues[state][piece][cols[i]][rots[i]] << std::endl;
+		if (qValues[state][piece][cols[i]][rots[i]] > qValues[state][piece][cols[best]][rots[best]]) {
+			best = i;
+		}
+	}
+	return best;
+}
+
+// Random exploration method. The agent will take random actions
+int RandomExplorationMethod(int state, int piece,std::vector<int> cols, std::vector<int> rots)
+{
+	std::random_device rd;
+	std::mt19937 gen(rd());
+	std::uniform_real_distribution<> dis(0, 1);
+
+	assert(!cols.size() == 0);
+
+	// Choose a random action with uniform distribution
+	int random_choice = dis(gen) * cols.size();
+	return random_choice;
+}
+
+// Epsilon-greedy exploration method. With probability `epsilon`, the agent will explore, otherwise it will exploit.
+int EpsilonGreedyExplorationMethod(int state, int piece,std::vector<int> cols, std::vector<int> rots, double epsilon = EPSILON) {
   std::random_device rd;
   std::mt19937 gen(rd());
   std::uniform_real_distribution<> dis(0, 1);
@@ -162,10 +197,10 @@ int EpsilonGreedyExplorationMethod(int state, int piece,std::vector<int> cols, s
   // Choose the action with the highest Q-value with probability (1-epsilon)
   // Choose a random action with probability epsilon
   int best = 0;
-  if (dis(gen) > EPSILON) {
+  if (dis(gen) > epsilon) {
 	// greedy action
 	for (int i = 0; i < cols.size(); i++) {
-		if (DEBUG_MODE) std::cout << "qValues[state = " << state << "][piece = " << piece << "][col = " << cols[i] << "][rot = " << rots[i]<< "] = " << qValues[state][piece][cols[i]][rots[i]] << std::endl;
+		//if (DEBUG_MODE) std::cout << "qValues[state = " << state << "][piece = " << piece << "][col = " << cols[i] << "][rot = " << rots[i]<< "] = " << qValues[state][piece][cols[i]][rots[i]] << std::endl;
 		if (qValues[state][piece][cols[i]][rots[i]] > qValues[state][piece][cols[best]][rots[best]]) {
 			best = i;
 		}
@@ -175,9 +210,34 @@ int EpsilonGreedyExplorationMethod(int state, int piece,std::vector<int> cols, s
   {
 	// random position and rotation
     best =  dis(gen) * cols.size();
-	if (DEBUG_MODE) std::cout << "random action" << std::endl;
+	//if (DEBUG_MODE) std::cout << "random action" << std::endl;
   }
   return best;
+}
+
+// Simple exploration method. The agent will receive a value of `R_plus` if it has seen the state-action pair less than `N_max` times, otherwise it will receive a reward equal to the Q-value.
+int SimpleExplorationMethod(int state, int piece,std::vector<int> cols, std::vector<int> rots, int N_max = 10, double R_plus = 20.0)
+{
+	assert(!cols.size() == 0);
+	int best = 0;
+	// Look for action that maximizes the Q-value
+	for (int i = 0; i < cols.size(); i++) {
+		N[state][piece][cols[i]][rots[i]]++;
+	}
+	// Argmax
+	for (int i = 0; i < cols.size(); i++) {
+		double weight = 0;
+		if (N[state][piece][cols[i]][rots[i]] < N_max) {  // If this state action pair was encountered less than N_max times
+			weight = R_plus;
+		}
+		else { // Else set the weight to the qValue of this state action pair
+			weight = qValues[state][piece][cols[i]][rots[i]];
+		}
+		if (weight > qValues[state][piece][cols[best]][rots[best]]) {
+			best = i;
+		}
+	}
+	return best;
 }
 
 unsigned crank(unsigned state,unsigned piece, unsigned next_piece, unsigned last_hole_idx = (1<<WIDTH)-1)
@@ -354,7 +414,7 @@ unsigned crank(unsigned state,unsigned piece, unsigned next_piece, unsigned last
 		return state; // Go to the next iteration (not even consider it as a next state)
 	}
 
-	best = EpsilonGreedyExplorationMethod(state,  piece, cols, rots); // get the action with the exploration function
+	best = SimpleExplorationMethod(state,  piece, cols, rots); // get the action with the exploration function
 
 	t = next_states[best]; 
 	bestcol = cols[best]; 
@@ -554,7 +614,7 @@ int main(int,char**)
 					}
 				}
 			}
-			printf("%4d %4d %4f %4d\n",game,height,EPSILON, number_of_calculated_q_values);
+			printf("%4d %4d %1.4f %6d\n",game,height,EPSILON, number_of_calculated_q_values);
 		}
 
 

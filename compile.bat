@@ -1,1 +1,0 @@
-g++ .\tetris-brute-force.cpp -o a.exe

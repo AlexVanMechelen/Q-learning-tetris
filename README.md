@@ -7,6 +7,8 @@
 
 ## TODO (Low-Prio)
 
+- Implement command line arguments / some way of selecting what test to run (ex: select what ExplorationFunction to use and pass this function pointer to the part of the code where it explores)
+- Add different epsilon decay functions
 - Implement a visualization of the algorithm playing in julia
 - Use learned Q-values to play Nicolas' cpp tetris game
 
