@@ -20,7 +20,8 @@ const int NUM_STATES = 1<<(WIDTH+WIDTH)+1;	// Number of states
 const int NUM_PIECES = 195+1;				// Number of pieces
 const int NUM_COL = WIDTH-1+1;				// Number of columns
 const int NUM_ROTATIONS = 3+1;				// Number of rotations
-double EPSILON = 0.1;							// Epsilon for epsilon-greedy exploration
+double EPSILON = 0.1;						// Epsilon for epsilon-greedy exploration
+bool EPSILON_DECAY = true;					// Indicates if EPSILON should decay over time
 
 std::vector<std::vector<std::vector<std::vector<double>>>> qValues(NUM_STATES,
 std::vector<std::vector<std::vector<double>>>(NUM_PIECES,
@@ -240,6 +241,29 @@ int SimpleExplorationMethod(int state, int piece,std::vector<int> cols, std::vec
 	return best;
 }
 
+void printRow(unsigned row) // Prints out one row to stdout
+{
+	bitset<WIDTH> bits(row);
+	for (int i = WIDTH - 1; i >= 0; i--) {
+		char* block = (char*)"  ";
+		if (bits[i])
+		{
+			block = (char*)"[]";
+		}
+		std::cout << block;
+	}
+	std::cout << '\n';
+	return;
+}
+
+void printPiece(unsigned piece)
+{
+	unsigned top_row = piece>>WIDTH; // Extract the top row
+	unsigned bottom_row = piece & ((1<<WIDTH)-1); // Extract the bottom row
+	printRow(top_row);
+	printRow(bottom_row);
+}
+
 unsigned crank(unsigned state,unsigned piece, unsigned next_piece, unsigned last_hole_idx = (1<<WIDTH)-1)
 {
 	std::random_device rd;
@@ -279,9 +303,10 @@ unsigned crank(unsigned state,unsigned piece, unsigned next_piece, unsigned last
       unsigned pos = (1<<a); // Get insert position
 	  if ((close_hole_idx & pos) != pos) // If this pos can't be reached via the holes
 	  {
+		//if (DEBUG_MODE) printf("a: %1d - Cannot be reached", a);
 		continue; // Move to the next pos
 	  }
-	  for(int r=0;r<3;r++) // Loop over all possible rotations r of the piece
+	  for(int r=0;r<4;r++) // Loop over all possible rotations r of the piece
 	  {
 		empty_queue(row_FIFO_queue_below_tmp); // Empty the tmp FIFO queue that keeps track of the rows beneath the top 2 ones for this current next state evaluation
 		stack<unsigned> row_LIFO_stack_above_two_tmp; // LIFO stack that keeps track of the rows above the current inspected 2xWIDTH frame and gets used in the crank function
@@ -306,6 +331,7 @@ unsigned crank(unsigned state,unsigned piece, unsigned next_piece, unsigned last
 			}
 			if(extra_row_one & n>>WIDTH) // If there's a collision
 			{
+				//if (DEBUG_MODE) { printf("a: %1d - r: %1d - Collision with row above!\n", a, r); }
 				collision = 1; // Set collision flag to one
 				break; // Break out of this while loop
 			}
@@ -341,6 +367,7 @@ unsigned crank(unsigned state,unsigned piece, unsigned next_piece, unsigned last
 			}
 			if(extra_row_one & n>>WIDTH) // If there's a collision
 			{
+				//if (DEBUG_MODE) printf("a: %1d - r: %1d - Collision with row above! (2)", a, r);
 				collision = 1; // Set collision flag to one
 			}
 			n = n | extra_row_one<<WIDTH; // Update n according to the previous row above
@@ -388,7 +415,8 @@ unsigned crank(unsigned state,unsigned piece, unsigned next_piece, unsigned last
 		row_FIFO_queue_below_bests.push_back(duplicateQueue(row_FIFO_queue_below_tmp)); // Vector to store the best below FIFO queues
 		num_rows_from_aboves.push_back(row_LIFO_stack_above_two_tmp.size()); // Vector to store the number of rows from above used in the best solution
 		
-		if (DEBUG_MODE) std::cout << "first qValues[state = " << state << "][piece = " << piece << "][col = " << a << "][rot = " << r << "] = " << qValues[state][piece][a][r] << std::endl;
+		//if (DEBUG_MODE) std::cout << "first qValues[state = " << state << "][piece = " << piece << "][col = " << a << "][rot = " << r << "] = " << qValues[state][piece][a][r] << std::endl;
+		
 		/*
 		if(qValues[state][piece][a][r] > best2) // If the discount factor times the Q value of this new position (score for how good this new position is) MINOUS a punishment for the number of rows lost (l*-100) is bigger than the current best score for a next state
 		{
@@ -406,15 +434,11 @@ unsigned crank(unsigned state,unsigned piece, unsigned next_piece, unsigned last
 		}
 		*/
 	  }
-	} 
-
-	if (next_states.size() == 0) // If there are no next states 
-	{
-		if (DEBUG_MODE) std::cout << "No next states" << std::endl;
-		return state; // Go to the next iteration (not even consider it as a next state)
 	}
 
-	best = SimpleExplorationMethod(state,  piece, cols, rots); // get the action with the exploration function
+	assert(next_states.size()); // There should be next states
+
+	best = EpsilonGreedyExplorationMethod(state,  piece, cols, rots); // get the action with the exploration function
 
 	t = next_states[best]; 
 	bestcol = cols[best]; 
@@ -523,29 +547,6 @@ unsigned Qlearning_iteration(unsigned state, unsigned piece, unsigned next_piece
 	return next_state;
 }
 
-void printRow(unsigned row) // Prints out one row to stdout
-{
-	bitset<WIDTH> bits(row);
-	for (int i = WIDTH - 1; i >= 0; i--) {
-		char* block = (char*)"  ";
-		if (bits[i])
-		{
-			block = (char*)"[]";
-		}
-		std::cout << block;
-	}
-	std::cout << '\n';
-	return;
-}
-
-void printPiece(unsigned piece)
-{
-	unsigned top_row = piece>>WIDTH; // Extract the top row
-	unsigned bottom_row = piece & ((1<<WIDTH)-1); // Extract the bottom row
-	printRow(top_row);
-	printRow(bottom_row);
-}
-
 void printGame(unsigned state, bool clearscreen = false, unsigned height = 999999) // Prints out the game to the terminal
 {
 	assert(height >= 2); // At least the state should be printed
@@ -586,6 +587,7 @@ int main(int,char**)
 		for(int i=0;i<1000;i++) // 10000 pieces get added before the game is over
 		{
 			unsigned next_piece = ((rand()%4)<<WIDTH) +  (rand()%3)+1; // Each piece consisits of a (WIDTH+2)-bit number.The (WIDTH+2) and (WIDTH+1) bits represent the top 2 blocks of the 2x2 piece, the 1st and 2nd bits represent the lower 2 blocks of the 2x2 piece
+			//if (DEBUG_MODE) {printf("Next piece:\n"); printPiece(next_piece);}
 			state = Qlearning_iteration(state,piece,next_piece); // Do a full Q-learning iteration for the current state and piece. Both the state and Q-table get updated
 			if (DEBUG_MODE)
 			{
@@ -616,14 +618,9 @@ int main(int,char**)
 			}
 			printf("%4d %4d %1.4f %6d\n",game,height,EPSILON, number_of_calculated_q_values);
 		}
-
-
 		// Decay epsilon
-		if (EPSILON > 0.001) EPSILON *= 0.99; else EPSILON = 0;
-
-		if (game == 1024)
-		{
-			//DEBUG_MODE = true;
+		if (EPSILON_DECAY) {
+			if (EPSILON > 0.001) EPSILON *= 0.99; else EPSILON = 0;
 		}
 	}
 	return 0;

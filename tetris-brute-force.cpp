@@ -155,7 +155,7 @@ unsigned crank(unsigned state,unsigned piece,unsigned last_hole_idx = (1<<WIDTH)
 	  {
 		continue; // Move to the next pos
 	  }
-	  for(int r=0;r<3;r++) // Loop over all possible rotations r of the piece
+	  for(int r=0;r<4;r++) // Loop over all possible rotations r of the piece
 	  {
 		empty_queue(row_FIFO_queue_below_tmp); // Empty the tmp FIFO queue that keeps track of the rows beneath the top 2 ones for this current next state evaluation
 		stack<unsigned> row_LIFO_stack_above_two_tmp; // LIFO stack that keeps track of the rows above the current inspected 2xWIDTH frame and gets used in the crank function
