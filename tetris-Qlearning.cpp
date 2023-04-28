@@ -1,4 +1,4 @@
-// Based on: S Melax (https://melax.github.io/tetris/tetris.html)
+// Inspired by: S Melax (https://melax.github.io/tetris/tetris.html)
 
 #include <stack>
 #include <queue>
@@ -49,7 +49,6 @@ void empty_queue(queue<unsigned>& q) { // Function used to empty the 'row_FIFO_q
     queue<unsigned> empty; // Initialize an empty queue
     q.swap(empty); // Swap the input queue with the empty one
 }
-
 
 void empty_stack(stack<unsigned>& q) {
     stack<unsigned> empty; // Initialize an empty stack
@@ -264,6 +263,98 @@ void printPiece(unsigned piece)
 	printRow(bottom_row);
 }
 
+void count_holes_and_set_max_height(unsigned &num_holes, vector<unsigned> &max_height, unsigned row, unsigned row_count) {
+    for (int i = 0; i < WIDTH; i++) {
+        if ((row & (1 << i)) == 0) {
+            num_holes++;
+        } else {
+            max_height[i] = row_count;
+        }
+    }
+	return;
+}
+
+double variance(vector<unsigned> max_height) {
+    double sum = 0;
+    double mean = 0;
+    for (int i = 0; i < max_height.size(); i++) {
+        sum += max_height[i];
+    }
+    mean = sum / max_height.size();
+    double variance = 0;
+    for (int i = 0; i < max_height.size(); i++) {
+        variance += pow(max_height[i] - mean, 2);
+    }
+    variance /= max_height.size();
+    return variance;
+}
+
+void calc_density_and_bumpiness(double &game_density, double &bumpiness, unsigned state)
+{
+	assert((!row_LIFO_stack_above.size())); // There may not be any rows stored above before performing this calculation
+	
+	// Initialize output values
+	game_density = 0.0;
+	bumpiness = 0;
+
+	// Move all the way down to the bottom of the game
+	while (row_LIFO_stack_below.size()) // While there are entries in the below LIFO stack
+	{
+		unsigned top_row = state>>WIDTH; // Extract the top row
+		row_LIFO_stack_above.push(top_row); // Add the top row of the state to the main above LIFO stack
+		state<<=WIDTH; // Shift the state one row up
+		state = state & ((1<<(WIDTH+WIDTH))-1); // Throw away the upper row
+		unsigned new_bottom_row = row_LIFO_stack_below.top(); // Extract a new bottom row for the state from the LIFO below stack
+		row_LIFO_stack_below.pop(); // Remove it from the below LIFO stack
+		state = state | new_bottom_row; // Add the new bottom row to the state
+	}
+
+	// Initialize counting variables
+	unsigned num_holes = 0; // Initialize num_holes counter to zero
+	std::vector<unsigned> max_height(WIDTH, 0); // Initialize vector that keeps track of the highest block in each column to zero
+	unsigned row_count = 1; // Blocks on the bottom row have height one (no block on bottom row -> Height zero)
+
+	// Perform first count for the very bottom row
+	unsigned bottom_row = state & ((1<<WIDTH)-1); // Extract the bottom row
+	count_holes_and_set_max_height(num_holes, max_height, bottom_row, row_count);
+
+	// Move all the way back up to the current game state
+	while (row_LIFO_stack_above.size()) // While there are entries in the above LIFO stack
+	{
+		unsigned bottom_row = state & ((1<<WIDTH)-1); // Extract the bottom row
+		row_LIFO_stack_below.push(bottom_row); // Add the bottom row of the state to the main below LIFO stack
+		state>>=WIDTH; // Shift the state one row down
+		unsigned new_bottom_row = state; // Extract the new bottom row to use for calculating density and bumpiness
+		row_count++; // Increase the row count by one
+		count_holes_and_set_max_height(num_holes, max_height, new_bottom_row, row_count);
+		unsigned new_top_row = row_LIFO_stack_above.top(); // Extract a new top row for the state from the LIFO above stack
+		row_LIFO_stack_above.pop(); // Remove it from the above LIFO stack
+		state = state | new_top_row<<WIDTH; // Add the new top row to the state
+	}
+
+	// Still need to keep counting for the two layers of the state
+	if (state == 0) { // Check if bottom row of state is empty
+		row_count--; // Correct for too high initialized value
+	} else {
+		if ((state>>WIDTH)) { // Check if top row of state is not empty
+			// Count the top row layer
+			row_count++; // Increase the row count by one
+			unsigned top_row = state>>WIDTH; // Extract the top row
+			count_holes_and_set_max_height(num_holes, max_height, top_row, row_count);
+		}
+	}
+
+	// Calculate game_density using num_holes
+	double game_area = row_count * WIDTH;
+	game_density = (game_area - num_holes) / game_area;
+
+	// Calculate bumpiness using max_height
+	//for (int i = 1; i < max_height.size(); i++) { bumpiness += abs(static_cast<int>(max_height[i] - max_height[i-1])); }
+	bumpiness = variance(max_height);
+
+	return;
+}
+
 unsigned crank(unsigned state,unsigned piece, unsigned next_piece, unsigned last_hole_idx = (1<<WIDTH)-1)
 {
 	std::random_device rd;
@@ -438,13 +529,15 @@ unsigned crank(unsigned state,unsigned piece, unsigned next_piece, unsigned last
 
 	assert(next_states.size()); // There should be next states
 
-	best = EpsilonGreedyExplorationMethod(state,  piece, cols, rots); // get the action with the exploration function
+	best = IdentityExplorationMethod(state,  piece, cols, rots); // get the action with the exploration function
 
-	t = next_states[best]; 
-	bestcol = cols[best]; 
-	bestrot = rots[best];
-	above_row_completion = above_row_completions[best];
-	number_of_completed_rows = num_completed_rows[best];
+	unsigned prev_state = state; // Save previous state for q value update
+
+	state = next_states[best]; // Move to the new state
+	bestcol = cols[best]; // Horizontal offset in which the piece is played
+	bestrot = rots[best]; // Rotation of the played piece
+	above_row_completion = above_row_completions[best]; // Number of rows above the state completed by playing the piece
+	number_of_completed_rows = num_completed_rows[best]; // Total number of rows completed by playing the piece
 	loss = losses[best]; // Save the loss of the current best next state
 	row_FIFO_queue_below_best = row_FIFO_queue_below_bests[best]; // Save a duplicate of this move's below FIFO queue
 	num_rows_from_above = num_rows_from_aboves[best]; // Keep track of how many rows from above are used in the best solution to later delete them from the real above LIFO stack
@@ -466,27 +559,6 @@ unsigned crank(unsigned state,unsigned piece, unsigned next_piece, unsigned last
 		}
 	}
 
-	//get reward from reward function
-	double reward = loss*-100 + (number_of_completed_rows+above_row_completion)*500;
-	if (DEBUG_MODE) std::cout<< "reward is " << reward <<std::endl;
-
-	//find action maximising the q_value of the new state
-	
-	double maxNextQValue = -9999999999999;
-	for (int i = 0; i < NUM_COL; i++) {
-	for (int j = 0; j < NUM_ROTATIONS; j++) {
-		if (qValues[state][next_piece][i][j] > maxNextQValue) {
-			maxNextQValue = qValues[t][next_piece][i][j];
-		}
-	}
-	}
-	qValues[state][piece][bestcol][bestrot] += alpha * (reward + gamma * maxNextQValue - qValues[state][piece][bestcol][bestrot]);
-	if (DEBUG_MODE) std::cout << "qValues[state = " << state << "][piece = " << piece << "][bestcol = " << bestcol << "][bestrot = " << bestrot << "] = " << qValues[state][piece][bestcol][bestrot] << std::endl;
-
-	P[state] ++; // counter (not used)
-
-	state = t;  // move to new state;
-
 	while (row_LIFO_stack_above.size()) // While there are entries in the above LIFO stack
 	{
 		unsigned bottom_row = state & ((1<<WIDTH)-1); // Extract the bottom row
@@ -498,8 +570,30 @@ unsigned crank(unsigned state,unsigned piece, unsigned next_piece, unsigned last
 	}
 
 	height = row_LIFO_stack_below.size() + ((state & ((1<<WIDTH)-1)) > 0) + (state > ((1<<WIDTH)-1)); // Set game height to the current LIFO stack below size + the height of the state
+
+	// Compute features usable in a reward function
+	double game_density; // The higher the density, the less holes
+	double bumpiness; // Variance of heights of all neighboring top blocks of each row
+	calc_density_and_bumpiness(game_density, bumpiness, state); // Calculate these parameters for the newly obtained state
+	if (DEBUG_MODE) std::cout << "game_density = " << game_density << " & bumpiness = " << bumpiness << std::endl;
+
+	// Get reward from reward function
+	double reward = loss*-100 + (number_of_completed_rows+above_row_completion)*500;  // >>>>>>>>>>>>>>>>>>>>>>>> TODO <<<<<<>>>>>> Implement more reward functions <<<<<<<<<<<<<<<<<<<<<<<<
+	if (DEBUG_MODE) std::cout << "reward is " << reward << std::endl;
+
+	// Find action maximizing the q_value of the new state
+	double maxNextQValue = -9999999999999;
+	for (int i = 0; i < NUM_COL; i++) {
+	for (int j = 0; j < NUM_ROTATIONS; j++) {
+		if (qValues[prev_state][next_piece][i][j] > maxNextQValue) {
+			maxNextQValue = qValues[t][next_piece][i][j];
+		}
+	}
+	}
+	qValues[prev_state][piece][bestcol][bestrot] += alpha * (reward + gamma * maxNextQValue - qValues[prev_state][piece][bestcol][bestrot]);
+	if (DEBUG_MODE) std::cout << "qValues[state = " << prev_state << "][piece = " << piece << "][bestcol = " << bestcol << "][bestrot = " << bestrot << "] = " << qValues[prev_state][piece][bestcol][bestrot] << std::endl;
 	
-	return state;
+	return state; // Return the new state
 }
 
 unsigned find_holes(unsigned state,unsigned piece,unsigned last_hole_idx = (1<<WIDTH)-1) // If no thrid argument is supplied it will assume all horizontal positions are possible positions the piece could come from
@@ -620,7 +714,7 @@ int main(int,char**)
 		}
 		// Decay epsilon
 		if (EPSILON_DECAY) {
-			if (EPSILON > 0.001) EPSILON *= 0.99; else EPSILON = 0;
+			if (EPSILON > 0.001) EPSILON *= 0.99; else EPSILON = 0;  // >>>>>>>>>>>>>>>>>>>>>>>> TODO <<<<<<>>>>>> Implement more epsilon decay functions <<<<<<<<<<<<<<<<<<<<<<<<
 		}
 	}
 	return 0;
