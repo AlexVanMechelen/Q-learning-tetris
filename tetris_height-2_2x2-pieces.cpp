@@ -5,14 +5,10 @@
 #include <stdlib.h>
 #include <assert.h>
 
-#include <iostream>
-#include <cstdlib> // for rand() and srand()
-
 
 #define WIDTH (6)     // game width (height = 2)
 float gamma = 0.80f;  // discount factor
 float alpha = 0.02f;  // learning rate
-int epsilon = 1;      // chance in % to explore using a random action (epsilon-greedy)
 
 float Q[1<<(WIDTH+WIDTH)];  // utility value -> array of size 2^(2*WIDTH) -> One utility value per possible board state
 int   P[1<<(WIDTH+WIDTH)];  // counter (not really needed)
@@ -67,49 +63,27 @@ unsigned crank(unsigned state,unsigned piece)
 	float best =-999999999.9f; // Initialize best next state to -Inf (any state is better)
 	unsigned t = 0;
 	int loss=9999; // Number of rows added to height when they're 'pushed down' (2xWIDTH board 'moves up')
-
-	int randomNumber = std::rand() % 100 + 1;
-
-	if (randomNumber < epsilon) //random action
+	for(int a=0;a<WIDTH-1;a++) // Loop over all horizontal positions a
 	{
-		//chose a random action
-		int a = std::rand() % WIDTH-1; //random horizontal position
-		int r = std::rand() % 3; //random rotation
-
-		unsigned t = result(state,a,rotate(piece,r)); // Return the game board that would result from placing 'piece' at horizontal position 'a' with rotation 'r'. Can have up to height 4 
-		int loss=0; // Variable to keep track of how many rows were shifted up (number of extra rows above the normal 2)
-		while(t>>(2*WIDTH)) // While there is part of a piece above row one
+	  for(int r=0;r<3;r++) // Loop over all possible rotations r of the piece
+	  {
+		unsigned n = result(state,a,rotate(piece,r)); // Return the game board that would result from placing 'piece' at horizontal position 'a' with rotation 'r'. Can have up to height 4 
+		int l=0; // Variable to keep track of how many rows were shifted up (number of extra rows above the normal 2)
+		while(n>>(2*WIDTH)) // While there is part of a piece above row one
 		{
-			t>>=WIDTH; // Throw the bottom row away (shift all rows down by one)
-			loss++; // Increase the counter that keeps track of how many rows were shifted up (number of extra rows above the normal 2)
+			n>>=WIDTH; // Throw the bottom row away (shift all rows down by one)
+			l++; // Increase the counter that keeps track of how many rows were shifted up (number of extra rows above the normal 2)
 		}
-		assert(t<(1<< 2*WIDTH)); // Throws an error if there's still part of a piece above row one, which should normally not be the case anymore
-		best = loss*-100 + gamma * Q[t]; // Update the current score for a next state
-	}
-	else 	// take action maximising the q value
-	{
-		for(int a=0;a<WIDTH-1;a++) // Loop over all horizontal positions a
+		assert(n<(1<< 2*WIDTH)); // Throws an error if there's still part of a piece above row one, which should normally not be the case anymore
+		// if((l<loss)||(l==loss && loss*-100 + gamma * Q[n] > best) ){
+		if(l*-100 + gamma * Q[n] > best) // If the discount factor times the Q value of this new position (score for how good this new position is) MINOUS a punishment for the number of rows lost (l*-100) is bigger than the current best score for a next state
 		{
-			for(int r=0;r<3;r++) // Loop over all possible rotations r of the piece
-			{
-				unsigned n = result(state,a,rotate(piece,r)); // Return the game board that would result from placing 'piece' at horizontal position 'a' with rotation 'r'. Can have up to height 4 
-				int l=0; // Variable to keep track of how many rows were shifted up (number of extra rows above the normal 2)
-				while(n>>(2*WIDTH)) // While there is part of a piece above row one
-				{
-					n>>=WIDTH; // Throw the bottom row away (shift all rows down by one)
-					l++; // Increase the counter that keeps track of how many rows were shifted up (number of extra rows above the normal 2)
-				}
-				assert(n<(1<< 2*WIDTH)); // Throws an error if there's still part of a piece above row one, which should normally not be the case anymore
-				// if((l<loss)||(l==loss && loss*-100 + gamma * Q[n] > best) ){
-				if(l*-100 + gamma * Q[n] > best) // If the discount factor times the Q value of this new position (score for how good this new position is) MINOUS a punishment for the number of rows lost (l*-100) is bigger than the current best score for a next state
-				{
-					t=n; // Save the current best next state
-					loss = l; // Save the loss of the current best next state
-					best = loss*-100 + gamma * Q[t]; // Update the current best score for a next state
-				}
-			}
-		} // At the end of this loop, the state with the highest 'best' score will still be saved in 't' and its loss in 'loss'
-	}
+			t=n; // Save the current best next state
+			loss = l; // Save the loss of the current best next state
+			best = loss*-100 + gamma * Q[t]; // Update the current best score for a next state
+		}
+	  }
+	} // At the end of this loop, the state with the highest 'best' score will still be saved in 't' and its loss in 'loss'
 	//if(loss)printf("Lost %d rows\n",loss);
 	height += loss; 
 	Q[state] = (1-alpha) * Q[state] + alpha * best; // update Q[state] based on result from state s to t 
