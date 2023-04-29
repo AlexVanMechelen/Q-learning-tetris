@@ -12,7 +12,7 @@
 
 bool DEBUG_MODE = false; // Used to visualize the game
 
-#define WIDTH (6)		// game width (height = 2)
+#define WIDTH (6)		// game width (height of state = 2)
 float gamma = 0.80f;	// discount factor
 float alpha = 0.02f;	// learning rate
 
@@ -671,6 +671,9 @@ int main(int,char**)
 {
 	init(); // Initialize all utility values to zero
 	int game=0;
+	bool debug_mode_set = DEBUG_MODE;
+	bool pressed_g = false;
+	bool pressed_2 = false;
 	while(game<1<<13) // Play 2^13 games, each consists of 10000 pieces
 	{
 		//explore = (game%2);  // doing exploration didn't help learning
@@ -687,7 +690,24 @@ int main(int,char**)
 			{
 				printf("Game: %4d - Iter: %4d - Height: %4d\n",game,i,height); // Print game info
 				printGame(state); // Print game
-				while (std::cin.get() != '\n'); // Wait for enter press
+				char c;
+				while ((c = std::cin.get()) != '\n') { // Wait for enter press -> Play next piece
+					if (c == 'g') {
+						std::cout << "[*] Entered 'g'. Continuing outside DEBUG_MODE until the next game." << std::endl;
+						pressed_g = true; // Remember this for the next game
+						DEBUG_MODE = false;
+						break;
+					} else if (c == '2') {
+						std::cout << "[*] Entered '2'. Continuing outside DEBUG_MODE until the next power of 2 game." << std::endl;
+						pressed_2 = true; // Remember this for the next power of 2 game
+						DEBUG_MODE = false;
+						break;
+					} else if (c == 'f') {
+						std::cout << "[*] Entered 'f'. Finishing all games." << std::endl;
+						DEBUG_MODE = false;
+						break;
+					}
+				}
 			}
 			piece = next_piece;
 		}
@@ -711,6 +731,14 @@ int main(int,char**)
 				}
 			}
 			printf("%4d %4d %1.4f %6d\n",game,height,EPSILON, number_of_calculated_q_values);
+			if (debug_mode_set && pressed_2) {
+				DEBUG_MODE = true; // Set DEBUG_MODE back to true at the beginning of a game after a power of 2
+				pressed_2 = false; // Forget 2 had been pressed for the next power of 2 game
+			}
+		}
+		if (debug_mode_set && pressed_g) {
+			DEBUG_MODE = true; // Set DEBUG_MODE back to true at the beginning of a game after a power of 2
+			pressed_g = false; // Forget g had been pressed for the next game
 		}
 		// Decay epsilon
 		if (EPSILON_DECAY) {
