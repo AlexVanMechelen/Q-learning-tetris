@@ -12,16 +12,16 @@
 
 bool DEBUG_MODE = false; // Used to visualize the game
 
-#define WIDTH (6)		// game width (height of state = 2)
-float gamma = 0.80f;	// discount factor
-float alpha = 0.02f;	// learning rate
-
+#define WIDTH (6)							// Game width (height of state = 2)
 const int NUM_STATES = 1<<(WIDTH+WIDTH)+1;	// Number of states
 const int NUM_PIECES = 195+1;				// Number of pieces
 const int NUM_COL = WIDTH-1+1;				// Number of columns
 const int NUM_ROTATIONS = 3+1;				// Number of rotations
-double EPSILON = 0.1;						// Epsilon for epsilon-greedy exploration
-bool EPSILON_DECAY = true;					// Indicates if EPSILON should decay over time
+
+float gamma = 0.80f;		// Discount factor
+float alpha = 0.02f;		// Learning rate
+double EPSILON = 0.1;		// Epsilon for epsilon-greedy exploration
+bool EPSILON_DECAY = true;	// Indicates if EPSILON should decay over time
 
 std::vector<std::vector<std::vector<std::vector<double>>>> qValues(NUM_STATES,
 std::vector<std::vector<std::vector<double>>>(NUM_PIECES,
@@ -32,13 +32,6 @@ std::vector<std::vector<std::vector<std::vector<long>>>> N(NUM_STATES,
 std::vector<std::vector<std::vector<long>>>(NUM_PIECES,
 std::vector<std::vector<long>>(NUM_COL,
 std::vector<long>(NUM_ROTATIONS, 0))));  // Initialize N to zeros; keeps track of amount of times a state action pair has been explored; used by the SimpleExplorationMethod
-
-float Q[1<<(WIDTH+WIDTH)];  // utility value -> array of size 2^(2*WIDTH) -> One utility value per possible board state
-int   P[1<<(WIDTH+WIDTH)];  // counter (not really needed)
-int height =0;
-int explore=0;  // flag I used to experiment with exploration
-int num_completed_rows_tmp = 0; // Used to track how many rows are completed by playing the piece
-unsigned played_piece = 0; // Used in the printGame() function to visualise where the piece has been played
 
 using namespace std;
 stack<unsigned> row_LIFO_stack_above; // LIFO stack that keeps track of the rows above the current inspected 2xWIDTH frame (gets filled when there are 'holes' present and we move downward to old layers)
@@ -55,7 +48,7 @@ void empty_stack(stack<unsigned>& q) {
     q.swap(empty); // Swap the input queue with the empty one
 }
 
-unsigned result(unsigned state, unsigned action, unsigned piece) 
+unsigned result(unsigned state, unsigned action, unsigned piece, int &num_completed_rows_tmp) 
 {
 	piece <<= action; // Move the piece horizontally to the position indicated by 'action'
 	while((piece & state) || ((piece <<WIDTH & state) && ((piece<<1 & state) || (action == WIDTH-1)) && ((piece>>1 & state) || (action == 0)))) // Check if the piece could have gotten into this position, if not -> go inside this loop
@@ -80,13 +73,6 @@ unsigned result(unsigned state, unsigned action, unsigned piece)
 	return t; // Return new state (can have up to height 4)
 }
 
-void init(){ // Initialize all utility values to zero
-	for(int i=0;i<(1<< 2*WIDTH);i++) 
-	{
-		Q[i] = 0.0f; // Initialize all utility values to zero
-		P[i] = 0; // counter (not used)
-	}
-}
 unsigned rotate(unsigned p,int r) // Takes in a piece [(WIDTH+2)-bit number] and a rotation (0-3) -> Rotates the piece r number of times and returns the new piece
 {
 	while(r--) // Rotate r number of times (decrease r until it's zero; when zero the while loop won't execute anymore)
@@ -355,7 +341,7 @@ void calc_density_and_bumpiness(double &game_density, double &bumpiness, unsigne
 	return;
 }
 
-unsigned crank(unsigned state,unsigned piece, unsigned next_piece, unsigned last_hole_idx = (1<<WIDTH)-1)
+unsigned crank(unsigned state,unsigned piece, unsigned next_piece, unsigned &played_piece, int &height, unsigned last_hole_idx = (1<<WIDTH)-1)
 {
 	std::random_device rd;
   	std::mt19937 gen(rd());
@@ -402,8 +388,8 @@ unsigned crank(unsigned state,unsigned piece, unsigned next_piece, unsigned last
 		empty_queue(row_FIFO_queue_below_tmp); // Empty the tmp FIFO queue that keeps track of the rows beneath the top 2 ones for this current next state evaluation
 		stack<unsigned> row_LIFO_stack_above_two_tmp; // LIFO stack that keeps track of the rows above the current inspected 2xWIDTH frame and gets used in the crank function
 		row_LIFO_stack_above_two_tmp = duplicateStack(row_LIFO_stack_above_two); // Fill the tmp LIFO stack that keeps track of the two rows above the current 2xWIDTH frame in 'state'
-		num_completed_rows_tmp = 0; // Set tracker of number of completed rows in this play to zero
-		unsigned n = result(state,a,rotate(piece,r)); // Return the game board that would result from placing 'piece' at horizontal position 'a' with rotation 'r'. Can have up to height 4 
+		int num_completed_rows_tmp = 0; // Used to track how many rows are completed by playing the piece
+		unsigned n = result(state,a,rotate(piece,r),num_completed_rows_tmp); // Return the game board that would result from placing 'piece' at horizontal position 'a' with rotation 'r'. Can have up to height 4 
 		int l=0; // Variable to keep track of how many rows were shifted up (number of extra rows above the normal 2)
 		int collision=0; // Bool that keeps track if there's a collision
 		int above_row_completion_flag=0; // Will be used to keep track if playing the piece in the best way completes 
@@ -623,7 +609,7 @@ unsigned find_holes(unsigned state,unsigned piece,unsigned last_hole_idx = (1<<W
 	return hole_idx;
 }
 
-unsigned Qlearning_iteration(unsigned state, unsigned piece, unsigned next_piece, unsigned last_hole_idx = (1<<WIDTH)-1)
+unsigned Qlearning_iteration(unsigned state, unsigned piece, unsigned next_piece, unsigned &played_piece, int &height, unsigned last_hole_idx = (1<<WIDTH)-1)
 {
 	unsigned hole_idx = find_holes(state, piece, last_hole_idx); // Find holes that can be reached from the hole on the layer above (last_hole_idx) and save them
 	while(hole_idx && row_LIFO_stack_below.size()) // While there are still holes present && there are saved rows below the current 2xWIDTH frame 'state'
@@ -637,28 +623,24 @@ unsigned Qlearning_iteration(unsigned state, unsigned piece, unsigned next_piece
 		hole_idx = find_holes(state, piece, last_hole_idx); // Find holes that can be reached from the hole on the layer above (last_hole_idx) and save them
 	} // By the end of this loop there are either no more holes OR we're at the bottom row
 	row_LIFO_stack_above_two = copy_top_two_from_LIFO_stack(row_LIFO_stack_above);
-	unsigned next_state = crank(state, piece, next_piece, last_hole_idx); // Use the last_hole_idx to see where the pieces could be coming from
+	unsigned next_state = crank(state, piece, next_piece, played_piece, height, last_hole_idx); // Use the last_hole_idx to see where the pieces could be coming from
 	return next_state;
 }
 
-void printGame(unsigned state, bool clearscreen = false, unsigned height = 999999) // Prints out the game to the terminal
+void printGame(unsigned state, unsigned played_piece, unsigned print_height = 999999) // Prints out the game to the terminal
 {
-	assert(height >= 2); // At least the state should be printed
+	assert(print_height >= 2); // At least the state should be printed
 	assert((!row_LIFO_stack_above.size())); // There may not be any rows stored above when printing the game
-	if (clearscreen)
-	{
-		system("cls"); // Clear screen
-	}
 	printPiece(played_piece);
 	std::cout << "------------\n"; // Print separator between piece and game
 	printPiece(state);
 	stack<unsigned> temp_stack;
-    while (height-2 > 0 && !row_LIFO_stack_below.empty()) {
+    while (print_height-2 > 0 && !row_LIFO_stack_below.empty()) {
         unsigned row = row_LIFO_stack_below.top();
         row_LIFO_stack_below.pop();
         temp_stack.push(row);
         printRow(row);
-        height--;
+        print_height--;
     }
     while (!temp_stack.empty()) {
         row_LIFO_stack_below.push(temp_stack.top());
@@ -669,27 +651,26 @@ void printGame(unsigned state, bool clearscreen = false, unsigned height = 99999
 
 int main(int,char**)
 {
-	init(); // Initialize all utility values to zero
-	int game=0;
+	int game = 0;
 	bool debug_mode_set = DEBUG_MODE;
 	bool pressed_g = false;
 	bool pressed_2 = false;
 	while(game<1<<13) // Play 2^13 games, each consists of 10000 pieces
 	{
-		//explore = (game%2);  // doing exploration didn't help learning
 		srand(0);
-		height=0; // This variable keeps track of how heigh the pieces stack up (The game only considers a 2xWIDTH playable game space. If a new piece gets placed in a way that the game can't fit in this 2xWIDTH space and (an) incompleted row(s) get(s) pushed downward, height increases)
+		int height = 0; // This variable keeps track of how heigh the pieces stack up (The game only considers a 2xWIDTH playable game space. If a new piece gets placed in a way that the game can't fit in this 2xWIDTH space and (an) incompleted row(s) get(s) pushed downward, height increases)
 		unsigned state =0; // Keeps track of the board state (can take on values from 0 to 2^(2*WIDTH))
 		unsigned piece = ((rand()%4)<<WIDTH) +  (rand()%3)+1; // Each piece consisits of a (WIDTH+2)-bit number.The (WIDTH+2) and (WIDTH+1) bits represent the top 2 blocks of the 2x2 piece, the 1st and 2nd bits represent the lower 2 blocks of the 2x2 piece
 		for(int i=0;i<1000;i++) // 10000 pieces get added before the game is over
 		{
 			unsigned next_piece = ((rand()%4)<<WIDTH) +  (rand()%3)+1; // Each piece consisits of a (WIDTH+2)-bit number.The (WIDTH+2) and (WIDTH+1) bits represent the top 2 blocks of the 2x2 piece, the 1st and 2nd bits represent the lower 2 blocks of the 2x2 piece
 			//if (DEBUG_MODE) {printf("Next piece:\n"); printPiece(next_piece);}
-			state = Qlearning_iteration(state,piece,next_piece); // Do a full Q-learning iteration for the current state and piece. Both the state and Q-table get updated
+			unsigned played_piece = next_piece; // Will be changed to the played piece in the Qlearning_iteration(). Used in the printGame() function.
+			state = Qlearning_iteration(state,piece,next_piece,played_piece,height); // Do a full Q-learning iteration for the current state and piece. Both the state and Q-table get updated, as well as the played_piece and the height of the game
 			if (DEBUG_MODE)
 			{
 				printf("Game: %4d - Iter: %4d - Height: %4d\n",game,i,height); // Print game info
-				printGame(state); // Print game
+				printGame(state, played_piece); // Print game
 				char c;
 				while ((c = std::cin.get()) != '\n') { // Wait for enter press -> Play next piece
 					if (c == 'g') {
