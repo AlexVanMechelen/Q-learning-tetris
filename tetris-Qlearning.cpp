@@ -12,11 +12,11 @@
 
 bool DEBUG_MODE = false; // Used to visualize the game
 
-#define WIDTH (6)							// Game width (height of state = 2)
-const int NUM_STATES = 1<<(WIDTH+WIDTH)+1;	// Number of states
-const int NUM_PIECES = 195+1;				// Number of pieces
-const int NUM_COL = WIDTH-1+1;				// Number of columns
-const int NUM_ROTATIONS = 3+1;				// Number of rotations
+#define WIDTH (6)											// Game width (height of state = 2)
+const int NUM_STATES = (1<<(WIDTH+WIDTH))-(1<<(WIDTH))-1;	// Number of states (State represented by largest unsigned has the following bits: 111110111110)
+const int NUM_PIECES = 3<<WIDTH + 3;						// Number of pieces (Piece represented by largest unsigned has the following bits: 11000011)
+const int NUM_COL = WIDTH-1;								// Number of columns (1 less than WIDTH, since the pieces are 2 blocks wide)
+const int NUM_ROTATIONS = 4;								// Number of rotations
 
 float gamma = 0.80f;		// Discount factor
 float alpha = 0.02f;		// Learning rate
