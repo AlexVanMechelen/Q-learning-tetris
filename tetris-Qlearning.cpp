@@ -13,11 +13,18 @@
 
 bool DEBUG_MODE = false; // Used to visualize the game
 
-#define WIDTH (6)											// Game width (height of state = 2)
+#define WIDTH (6)	
+/*									// Game width (height of state = 2)
 const int NUM_STATES = (1<<(WIDTH+WIDTH))-(1<<(WIDTH))-1;	// Number of states (State represented by largest unsigned has the following bits: 111110111110)
 const int NUM_PIECES = 3<<WIDTH + 3;						// Number of pieces (Piece represented by largest unsigned has the following bits: 11000011)
 const int NUM_COL = WIDTH-1;								// Number of columns (1 less than WIDTH, since the pieces are 2 blocks wide)
 const int NUM_ROTATIONS = 4;								// Number of rotations
+*/
+
+const int NUM_STATES = 1<<(WIDTH+WIDTH)+1;	// Number of states
+const int NUM_PIECES = 195+1;				// Number of pieces
+const int NUM_COL = WIDTH-1+1;				// Number of columns
+const int NUM_ROTATIONS = 3+1;				// Number of rotations
 
 float gamma = 0.80f;		// Discount factor
 float alpha = 0.02f;		// Learning rate
@@ -559,7 +566,7 @@ unsigned crank(unsigned state,unsigned piece, unsigned next_piece, unsigned &pla
 	}
 
 	height = row_LIFO_stack_below.size() + ((state & ((1<<WIDTH)-1)) > 0) + (state > ((1<<WIDTH)-1)); // Set game height to the current LIFO stack below size + the height of the state
-	myfile2 << height;
+	myfile2 << height << " ";
 	// Compute features usable in a reward function
 	double game_density; // The higher the density, the less holes
 	double bumpiness; // Variance of heights of all neighboring top blocks of each row
