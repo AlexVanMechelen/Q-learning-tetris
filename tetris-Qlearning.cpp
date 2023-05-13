@@ -9,6 +9,7 @@
 #include <assert.h>
 #include <vector>
 #include <random>
+#include <fstream>
 
 bool DEBUG_MODE = false; // Used to visualize the game
 
@@ -22,6 +23,8 @@ float gamma = 0.80f;		// Discount factor
 float alpha = 0.02f;		// Learning rate
 double EPSILON = 0.1;		// Epsilon for epsilon-greedy exploration
 bool EPSILON_DECAY = true;	// Indicates if EPSILON should decay over time
+
+std::ofstream myfile2;
 
 std::vector<std::vector<std::vector<std::vector<double>>>> qValues(NUM_STATES,
 std::vector<std::vector<std::vector<double>>>(NUM_PIECES,
@@ -556,7 +559,7 @@ unsigned crank(unsigned state,unsigned piece, unsigned next_piece, unsigned &pla
 	}
 
 	height = row_LIFO_stack_below.size() + ((state & ((1<<WIDTH)-1)) > 0) + (state > ((1<<WIDTH)-1)); // Set game height to the current LIFO stack below size + the height of the state
-
+	myfile2 << height;
 	// Compute features usable in a reward function
 	double game_density; // The higher the density, the less holes
 	double bumpiness; // Variance of heights of all neighboring top blocks of each row
@@ -652,6 +655,9 @@ void printGame(unsigned state, unsigned played_piece, unsigned print_height = 99
 int main(int,char**)
 {
 	int game = 0;
+	std::ofstream myfile;
+    myfile.open("log.txt");
+    myfile2.open("log_heights.txt");
 	bool debug_mode_set = DEBUG_MODE;
 	bool pressed_g = false;
 	bool pressed_2 = false;
@@ -694,6 +700,7 @@ int main(int,char**)
 		}
 		empty_stack(row_LIFO_stack_below); // Empty the game LIFO stack
 		game++;
+		myfile2 << std::endl;
 		 // if a power of 2 -> Print the game number + the height of that game (= performance measure)
 		if(0==(game & (game-1))){
 			// number of calculated q values
@@ -712,6 +719,8 @@ int main(int,char**)
 				}
 			}
 			printf("%4d %4d %1.4f %6d\n",game,height,EPSILON, number_of_calculated_q_values);
+			myfile << game << " " << height << " " << EPSILON << " " << number_of_calculated_q_values << std::endl;
+			
 			if (debug_mode_set && pressed_2) {
 				DEBUG_MODE = true; // Set DEBUG_MODE back to true at the beginning of a game after a power of 2
 				pressed_2 = false; // Forget 2 had been pressed for the next power of 2 game
@@ -726,5 +735,7 @@ int main(int,char**)
 			if (EPSILON > 0.001) EPSILON *= 0.99; else EPSILON = 0;  // >>>>>>>>>>>>>>>>>>>>>>>> TODO <<<<<<>>>>>> Implement more epsilon decay functions <<<<<<<<<<<<<<<<<<<<<<<<
 		}
 	}
+	myfile.close();
+	myfile2.close();
 	return 0;
 }
