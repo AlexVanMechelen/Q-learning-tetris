@@ -14,6 +14,7 @@
 bool DEBUG_MODE = false; // Used to visualize the game
 bool FIXED_HEIGHT_TEST = false; // Plays an infinite amount of pieces with a maximum game board height
 bool log_height_data = false; // Used to log the data to a file
+int n_games = 11; // Number of games to play (log2)
 
 #define MAX_HEIGHT (10) // Max height used in a FIXED_HEIGHT_TEST
 #define WIDTH (6)	
@@ -29,15 +30,16 @@ const int NUM_PIECES = 195+1;				// Number of pieces
 const int NUM_COL = WIDTH-1+1;				// Number of columns
 const int NUM_ROTATIONS = 3+1;				// Number of rotations
 
-float gamma = 0.80f;		// Discount factor
-float alpha = 0.02f;		// Learning rate
-double EPSILON = 0.1;		// Epsilon for epsilon-greedy exploration
-bool EPSILON_DECAY = true;	// Indicates if EPSILON should decay over time
+float gamma = 0.80f;		 // Discount factor
+float alpha = 0.02f;		 // Learning rate
+double EPSILON = 0;		     // Epsilon for epsilon-greedy exploration
+bool EPSILON_DECAY = false;	 // Indicates if EPSILON should decay over time
 
-int kloss = -100;
-int kcomb = 500;
-int kdens = 0;
-int kbump = 0;
+//reward function parameters
+int kloss = -100;     // Reward for Number of rows added to height when they're 'pushed down') 
+int kcomb = 500;      // Reward for Number of rows completed
+int kdens = 0;        // Reward for Number of "holes"
+int kbump = 0;        // Reward for Number of 'bumps' (number of blocks that are not on the bottom layer and have a block below them)
 
 std::vector<std::vector<std::vector<std::vector<double>>>> qValues(NUM_STATES,
 std::vector<std::vector<std::vector<double>>>(NUM_PIECES,
@@ -700,7 +702,7 @@ int main(int,char**)
 	bool pressed_2 = false;
 
 	std::cout <<"game | height | average_height | epsilon | number of calculated q values" << std::endl;
-	while(game<1<<13) // Play 2^13 games, each consists of 10000 pieces
+	while(game<1<<n_games) // Play 2^13 games, each consists of 10000 pieces
 	{
 		srand(0);
 		int height = 0; // This variable keeps track of how heigh the pieces stack up (The game only considers a 2xWIDTH playable game space. If a new piece gets placed in a way that the game can't fit in this 2xWIDTH space and (an) incompleted row(s) get(s) pushed downward, height increases)
