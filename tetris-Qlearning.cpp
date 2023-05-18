@@ -736,9 +736,7 @@ int main(int,char**)
 					}
 				}
 			}
-			printf("%4d %4d %3.2f %1.4f %6d\n",game,height,average_height, EPSILON, number_of_calculated_q_values);
-			log_file << game << " " << height << " " << EPSILON << " " << number_of_calculated_q_values << " " << average_height << std::endl;
-			
+
 			if (debug_mode_set && pressed_2) {
 				DEBUG_MODE = true; // Set DEBUG_MODE back to true at the beginning of a game after a power of 2
 				pressed_2 = false; // Forget 2 had been pressed for the next power of 2 game
@@ -771,8 +769,8 @@ int main(int,char**)
 			}
 			else
 			{
-				printf("%4d %4d %1.4f %6d\n",game,height,EPSILON, number_of_calculated_q_values);
-				log_file << game << " " << height << " " << EPSILON << " " << number_of_calculated_q_values << std::endl;
+				printf("%4d %4d %3.2f %1.4f %6d\n",game,height,average_height, EPSILON, number_of_calculated_q_values);
+				log_file << game << " " << height << " " << EPSILON << " " << number_of_calculated_q_values << " " << average_height << std::endl;
 			}
 		}
 		if (debug_mode_set && pressed_g) {
