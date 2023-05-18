@@ -12,7 +12,9 @@
 #include <fstream>
 
 bool DEBUG_MODE = false; // Used to visualize the game
+bool FIXED_HEIGHT_TEST = false; // Plays an infinite amount of pieces with a maximum game board height
 
+#define MAX_HEIGHT (10) // Max height used in a FIXED_HEIGHT_TEST
 #define WIDTH (6)	
 /*									// Game width (height of state = 2)
 const int NUM_STATES = (1<<(WIDTH+WIDTH))-(1<<(WIDTH))-1;	// Number of states (State represented by largest unsigned has the following bits: 111110111110)
@@ -30,8 +32,6 @@ float gamma = 0.80f;		// Discount factor
 float alpha = 0.02f;		// Learning rate
 double EPSILON = 0.1;		// Epsilon for epsilon-greedy exploration
 bool EPSILON_DECAY = true;	// Indicates if EPSILON should decay over time
-
-std::ofstream myfile2;
 
 std::vector<std::vector<std::vector<std::vector<double>>>> qValues(NUM_STATES,
 std::vector<std::vector<std::vector<double>>>(NUM_PIECES,
@@ -566,7 +566,7 @@ unsigned crank(unsigned state,unsigned piece, unsigned next_piece, unsigned &pla
 	}
 
 	height = row_LIFO_stack_below.size() + ((state & ((1<<WIDTH)-1)) > 0) + (state > ((1<<WIDTH)-1)); // Set game height to the current LIFO stack below size + the height of the state
-	myfile2 << height << " ";
+
 	// Compute features usable in a reward function
 	double game_density; // The higher the density, the less holes
 	double bumpiness; // Variance of heights of all neighboring top blocks of each row
@@ -659,12 +659,36 @@ void printGame(unsigned state, unsigned played_piece, unsigned print_height = 99
 	return;
 }
 
+void debugModeMenu(bool &pressed_g, bool &pressed_2)
+{
+	char c;
+	while ((c = std::cin.get()) != '\n') { // Wait for enter press -> Play next piece
+		if (c == 'g') {
+			std::cout << "[*] Entered 'g'. Continuing outside DEBUG_MODE until the next game." << std::endl;
+			pressed_g = true; // Remember this for the next game
+			DEBUG_MODE = false;
+			break;
+		} else if (c == '2') {
+			std::cout << "[*] Entered '2'. Continuing outside DEBUG_MODE until the next power of 2 game." << std::endl;
+			pressed_2 = true; // Remember this for the next power of 2 game
+			DEBUG_MODE = false;
+			break;
+		} else if (c == 'f') {
+			std::cout << "[*] Entered 'f'. Finishing all games." << std::endl;
+			DEBUG_MODE = false;
+			break;
+		}
+	}
+	return;
+}
+
 int main(int,char**)
 {
 	int game = 0;
-	std::ofstream myfile;
-    myfile.open("log.txt");
-    myfile2.open("log_heights.txt");
+	std::ofstream log_file;
+	std::ofstream log_heights_file;
+    log_file.open("log.txt");
+    log_heights_file.open("log_heights.txt");
 	bool debug_mode_set = DEBUG_MODE;
 	bool pressed_g = false;
 	bool pressed_2 = false;
@@ -682,34 +706,18 @@ int main(int,char**)
 			unsigned played_piece = next_piece; // Will be changed to the played piece in the Qlearning_iteration(). Used in the printGame() function.
 			state = Qlearning_iteration(state,piece,next_piece,played_piece,height); // Do a full Q-learning iteration for the current state and piece. Both the state and Q-table get updated, as well as the played_piece and the height of the game
 			sum_height += height; // Add the height of the game to the sum of heights
+			log_heights_file << height << " "; // Log the game height
 			if (DEBUG_MODE)
 			{
 				printf("Game: %4d - Iter: %4d - Height: %4d\n",game,i,height); // Print game info
 				printGame(state, played_piece); // Print game
-				char c;
-				while ((c = std::cin.get()) != '\n') { // Wait for enter press -> Play next piece
-					if (c == 'g') {
-						std::cout << "[*] Entered 'g'. Continuing outside DEBUG_MODE until the next game." << std::endl;
-						pressed_g = true; // Remember this for the next game
-						DEBUG_MODE = false;
-						break;
-					} else if (c == '2') {
-						std::cout << "[*] Entered '2'. Continuing outside DEBUG_MODE until the next power of 2 game." << std::endl;
-						pressed_2 = true; // Remember this for the next power of 2 game
-						DEBUG_MODE = false;
-						break;
-					} else if (c == 'f') {
-						std::cout << "[*] Entered 'f'. Finishing all games." << std::endl;
-						DEBUG_MODE = false;
-						break;
-					}
-				}
+				debugModeMenu(pressed_g, pressed_2);
 			}
 			piece = next_piece;
 		}
 		empty_stack(row_LIFO_stack_below); // Empty the game LIFO stack
 		game++;
-		myfile2 << std::endl;
+		log_heights_file << std::endl;
 		double average_height = sum_height/1000; // Calculate the average height of the game
 		 // if a power of 2 -> Print the game number + the height of that game (= performance measure)
 		if(0==(game & (game-1))){
@@ -729,11 +737,42 @@ int main(int,char**)
 				}
 			}
 			printf("%4d %4d %3.2f %1.4f %6d\n",game,height,average_height, EPSILON, number_of_calculated_q_values);
-			myfile << game << " " << height << " " << EPSILON << " " << number_of_calculated_q_values << " " << average_height << std::endl;
+			log_file << game << " " << height << " " << EPSILON << " " << number_of_calculated_q_values << " " << average_height << std::endl;
 			
 			if (debug_mode_set && pressed_2) {
 				DEBUG_MODE = true; // Set DEBUG_MODE back to true at the beginning of a game after a power of 2
 				pressed_2 = false; // Forget 2 had been pressed for the next power of 2 game
+			}
+
+			int prev_height = height; // Save height of 2^n game for logging after FIXED_HEIGHT_TEST
+
+			if (FIXED_HEIGHT_TEST) // Plays an infinite amount of pieces with a maximum game board height
+			{
+				int i = 0; // Keeps track of how many pieces were played
+				int height = 0; // This variable keeps track of how heigh the pieces stack up
+				unsigned state = 0; // Keeps track of the board state (can take on values from 0 to 2^(2*WIDTH))
+				unsigned piece = ((rand()%4)<<WIDTH) +  (rand()%3)+1; // Each piece consisits of a (WIDTH+2)-bit number.The (WIDTH+2) and (WIDTH+1) bits represent the top 2 blocks of the 2x2 piece, the 1st and 2nd bits represent the lower 2 blocks of the 2x2 piece
+				while (height < MAX_HEIGHT && i < 1<<20) // Stop after about a million pieces
+				{
+					unsigned next_piece = ((rand()%4)<<WIDTH) +  (rand()%3)+1; // Each piece consisits of a (WIDTH+2)-bit number.The (WIDTH+2) and (WIDTH+1) bits represent the top 2 blocks of the 2x2 piece, the 1st and 2nd bits represent the lower 2 blocks of the 2x2 piece
+					unsigned played_piece = next_piece; // Will be changed to the played piece in the Qlearning_iteration(). Used in the printGame() function.
+					state = Qlearning_iteration(state,piece,next_piece,played_piece,height); // Do a full Q-learning iteration for the current state and piece. Both the state and Q-table get updated, as well as the played_piece and the height of the game
+					i++; // One more piece played
+					if (DEBUG_MODE)
+					{
+						printf("[FIXED_HEIGHT_TEST] Game: %4d - Iter: %4d - Height: %4d\n",game,i,height); // Print game info
+						printGame(state, played_piece); // Print game
+						debugModeMenu(pressed_g, pressed_2);
+					}
+					piece = next_piece;
+				}
+				printf("%4d %4d %1.4f %6d %7d\n",game,prev_height,EPSILON, number_of_calculated_q_values, i);
+				log_file << game << " " << height << " " << EPSILON << " " << number_of_calculated_q_values << " " << i << std::endl;
+			}
+			else
+			{
+				printf("%4d %4d %1.4f %6d\n",game,height,EPSILON, number_of_calculated_q_values);
+				log_file << game << " " << height << " " << EPSILON << " " << number_of_calculated_q_values << std::endl;
 			}
 		}
 		if (debug_mode_set && pressed_g) {
@@ -745,7 +784,7 @@ int main(int,char**)
 			if (EPSILON > 0.001) EPSILON *= 0.99; else EPSILON = 0;  // >>>>>>>>>>>>>>>>>>>>>>>> TODO <<<<<<>>>>>> Implement more epsilon decay functions <<<<<<<<<<<<<<<<<<<<<<<<
 		}
 	}
-	myfile.close();
-	myfile2.close();
+	log_file.close();
+	log_heights_file.close();
 	return 0;
 }
