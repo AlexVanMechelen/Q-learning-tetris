@@ -13,6 +13,7 @@
 
 bool DEBUG_MODE = false; // Used to visualize the game
 bool FIXED_HEIGHT_TEST = false; // Plays an infinite amount of pieces with a maximum game board height
+bool log_height_data = false; // Used to log the data to a file
 
 #define MAX_HEIGHT (10) // Max height used in a FIXED_HEIGHT_TEST
 #define WIDTH (6)	
@@ -32,6 +33,11 @@ float gamma = 0.80f;		// Discount factor
 float alpha = 0.02f;		// Learning rate
 double EPSILON = 0.1;		// Epsilon for epsilon-greedy exploration
 bool EPSILON_DECAY = true;	// Indicates if EPSILON should decay over time
+
+int kloss = -100;
+int kcomb = 500;
+int kdens = 0;
+int kbump = 0;
 
 std::vector<std::vector<std::vector<std::vector<double>>>> qValues(NUM_STATES,
 std::vector<std::vector<std::vector<double>>>(NUM_PIECES,
@@ -525,7 +531,7 @@ unsigned crank(unsigned state,unsigned piece, unsigned next_piece, unsigned &pla
 
 	assert(next_states.size()); // There should be next states
 
-	best = IdentityExplorationMethod(state,  piece, cols, rots); // get the action with the exploration function
+	best = EpsilonGreedyExplorationMethod(state,  piece, cols, rots, EPSILON); // get the action with the exploration function
 
 	unsigned prev_state = state; // Save previous state for q value update
 
@@ -574,7 +580,7 @@ unsigned crank(unsigned state,unsigned piece, unsigned next_piece, unsigned &pla
 	if (DEBUG_MODE) std::cout << "game_density = " << game_density << " & bumpiness = " << bumpiness << std::endl;
 
 	// Get reward from reward function
-	double reward = loss*-100 + (number_of_completed_rows+above_row_completion)*500;  // >>>>>>>>>>>>>>>>>>>>>>>> TODO <<<<<<>>>>>> Implement more reward functions <<<<<<<<<<<<<<<<<<<<<<<<
+	double reward = loss*kloss + (number_of_completed_rows+above_row_completion)*kcomb + game_density*kdens + bumpiness* kbump;  // >>>>>>>>>>>>>>>>>>>>>>>> TODO <<<<<<>>>>>> Implement more reward functions <<<<<<<<<<<<<<<<<<<<<<<<
 	if (DEBUG_MODE) std::cout << "reward is " << reward << std::endl;
 
 	// Find action maximizing the q_value of the new state
@@ -692,6 +698,8 @@ int main(int,char**)
 	bool debug_mode_set = DEBUG_MODE;
 	bool pressed_g = false;
 	bool pressed_2 = false;
+
+	std::cout <<"game | height | average_height | epsilon | number of calculated q values" << std::endl;
 	while(game<1<<13) // Play 2^13 games, each consists of 10000 pieces
 	{
 		srand(0);
@@ -706,7 +714,7 @@ int main(int,char**)
 			unsigned played_piece = next_piece; // Will be changed to the played piece in the Qlearning_iteration(). Used in the printGame() function.
 			state = Qlearning_iteration(state,piece,next_piece,played_piece,height); // Do a full Q-learning iteration for the current state and piece. Both the state and Q-table get updated, as well as the played_piece and the height of the game
 			sum_height += height; // Add the height of the game to the sum of heights
-			log_heights_file << height << " "; // Log the game height
+			if(log_height_data) log_heights_file << height << " "; // Log the game height
 			if (DEBUG_MODE)
 			{
 				printf("Game: %4d - Iter: %4d - Height: %4d\n",game,i,height); // Print game info
@@ -717,7 +725,7 @@ int main(int,char**)
 		}
 		empty_stack(row_LIFO_stack_below); // Empty the game LIFO stack
 		game++;
-		log_heights_file << std::endl;
+		if(log_height_data) log_heights_file << std::endl;
 		double average_height = sum_height/1000; // Calculate the average height of the game
 		 // if a power of 2 -> Print the game number + the height of that game (= performance measure)
 		if(0==(game & (game-1))){
