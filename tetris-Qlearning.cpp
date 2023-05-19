@@ -762,6 +762,7 @@ int main(int,char**)
 
 			if (FIXED_HEIGHT_TEST) // Plays an infinite amount of pieces with a maximum game board height
 			{
+				srand(0);
 				int i = 0; // Keeps track of how many pieces were played
 				int height = 0; // This variable keeps track of how heigh the pieces stack up
 				unsigned state = 0; // Keeps track of the board state (can take on values from 0 to 2^(2*WIDTH))
