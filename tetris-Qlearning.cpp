@@ -734,7 +734,7 @@ int main(int,char**)
 		empty_stack(row_LIFO_stack_below); // Empty the game LIFO stack
 		game++;
 		if(log_height_data) log_heights_file << std::endl;
-		double average_height = sum_height/1000; // Calculate the average height of the game
+		double average_height = sum_height/double(1000); // Calculate the average height of the game
 		 // if a power of 2 -> Print the game number + the height of that game (= performance measure)
 		if(0==(game & (game-1))){
 			// number of calculated q values
