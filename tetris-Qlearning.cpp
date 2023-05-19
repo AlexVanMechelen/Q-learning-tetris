@@ -10,6 +10,7 @@
 #include <vector>
 #include <random>
 #include <fstream>
+#include <string>
 
 bool DEBUG_MODE = false; // Used to visualize the game
 bool FIXED_HEIGHT_TEST = false; // Plays an infinite amount of pieces with a maximum game board height
@@ -695,13 +696,18 @@ int main(int,char**)
 	int game = 0;
 	std::ofstream log_file;
 	std::ofstream log_heights_file;
-    log_file.open("log.txt");
+    std::string filename = "log_gamma_="+ std::to_string(gamma) + "_alpha_=" + std::to_string(alpha) + "_kloss_=" + std::to_string(kloss) + "_kcomb_=" + std::to_string(kcomb) + "_kdens_=" + std::to_string(kdens) + "_kbump_=" + std::to_string(kbump) + ".txt";
+    log_file.open(filename);
     log_heights_file.open("log_heights.txt");
+
+	log_file << "gamma = " << gamma << " alpha = " << alpha << " kloss = " << kloss << " kcomb = " << kcomb << " kdens = " << kdens << " kbump = " << kbump << std::endl;
+
 	bool debug_mode_set = DEBUG_MODE;
 	bool pressed_g = false;
 	bool pressed_2 = false;
 
 	std::cout <<"game | height | average_height | epsilon | number of calculated q values" << std::endl;
+	log_file <<"game | height | epsilon | number of calculated q values | average_height " << std::endl;
 	while(game<1<<n_games) // Play 2^13 games, each consists of 10000 pieces
 	{
 		srand(0);
