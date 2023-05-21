@@ -589,14 +589,20 @@ unsigned crank(unsigned state,unsigned piece, unsigned next_piece, unsigned &pla
 	// Find action maximizing the q_value of the new state
 	double maxNextQValue = -9999999999999;
 	for (int i = 0; i < NUM_COL; i++) {
-	for (int j = 0; j < NUM_ROTATIONS; j++) {
-		if (qValues[prev_state][next_piece][i][j] > maxNextQValue) {
-			maxNextQValue = qValues[t][next_piece][i][j];
+		for (int j = 0; j < NUM_ROTATIONS; j++) {
+			if (qValues[state][next_piece][i][j] > maxNextQValue) {
+				maxNextQValue = qValues[state][next_piece][i][j];
+			}
 		}
 	}
-	}
+
+	if (DEBUG_MODE) std::cout << "maxNextQValue = " << maxNextQValue << std::endl;
+
+	if (DEBUG_MODE) std::cout << "old qValue[state = " << prev_state << "][piece = " << piece << "][bestcol = " << bestcol << "][bestrot = " << bestrot << "] = " << qValues[prev_state][piece][bestcol][bestrot] << std::endl;
+
 	qValues[prev_state][piece][bestcol][bestrot] += alpha * (reward + gamma * maxNextQValue - qValues[prev_state][piece][bestcol][bestrot]);
-	if (DEBUG_MODE) std::cout << "qValues[state = " << prev_state << "][piece = " << piece << "][bestcol = " << bestcol << "][bestrot = " << bestrot << "] = " << qValues[prev_state][piece][bestcol][bestrot] << std::endl;
+
+	if (DEBUG_MODE) std::cout << "new qValue[state = " << prev_state << "][piece = " << piece << "][bestcol = " << bestcol << "][bestrot = " << bestrot << "] = " << qValues[prev_state][piece][bestcol][bestrot] << std::endl;
 	
 	return state; // Return the new state
 }
@@ -700,14 +706,14 @@ int main(int,char**)
     log_file.open(filename);
     log_heights_file.open("log_heights.txt");
 
-	log_file << "gamma = " << gamma << " alpha = " << alpha << " kloss = " << kloss << " kcomb = " << kcomb << " kdens = " << kdens << " kbump = " << kbump << std::endl;
+	//log_file << "gamma = " << gamma << " alpha = " << alpha << " kloss = " << kloss << " kcomb = " << kcomb << " kdens = " << kdens << " kbump = " << kbump << std::endl;
 
 	bool debug_mode_set = DEBUG_MODE;
 	bool pressed_g = false;
 	bool pressed_2 = false;
 
 	std::cout <<"game | height | average_height | epsilon | number of calculated q values" << std::endl;
-	log_file <<"game | height | epsilon | number of calculated q values | average_height " << std::endl;
+	//log_file <<"game | height | epsilon | number of calculated q values | average_height " << std::endl;
 	while(game<1<<n_games) // Play 2^13 games, each consists of 10000 pieces
 	{
 		srand(0);

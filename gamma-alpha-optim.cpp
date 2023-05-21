@@ -8,6 +8,7 @@
 const int n_gamma = 10;
 const int n_alpha = 10;
 const int MAX_WINDOWS = 30;
+bool execute = true;
 
 float gammas[n_gamma] = {0.1f, 0.2f, 0.3f, 0.4f, 0.5f, 0.6f, 0.7f, 0.8f, 0.9f, 1.0f};
 float alphas[n_alpha] = {0.1f, 0.2f, 0.3f, 0.4f, 0.5f, 0.6f, 0.7f, 0.8f, 0.9f, 1.0f};
@@ -76,6 +77,12 @@ int main() {
 
             if (compileResult == 0) {
                 std::cout << "Compilation successful." << std::endl;
+
+                if(execute) {
+                    std::string exeFilename = "tetris-Qlearning_gamma_"+ std::to_string(gamma) + "_alpha_" + std::to_string(alpha) + ".exe";
+                    std::string command = "cmd.exe /c start " + exeFilename;
+                    system(command.c_str());
+                }
                 /*
                 std::cout << "windowCount: " << windowCount << std::endl;
                 
@@ -139,7 +146,7 @@ int main() {
     int i = 1;
     for (float alpha : alphas) {
         for (float gamma : gammas) {
-            code << "log_data" << i << " = importdata('log_gamma_=" << std::to_string(gamma) << "_alpha_=" << std::to_string(alpha) << "_kloss_=-100_kcomb_=500_kdens_=0_kbump_=0.txt').textdata;\n";
+            code << "log_data(:,:," << i << ") = importdata('log_gamma_=" << std::to_string(gamma) << "_alpha_=" << std::to_string(alpha) << "_kloss_=-100_kcomb_=500_kdens_=0_kbump_=0.txt').textdata;\n";
             i++;
         }
     }
