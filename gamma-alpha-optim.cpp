@@ -126,6 +126,7 @@ int main() {
             } else {
                 std::cerr << "Compilation failed." << std::endl;
                 error_flag = true;
+                
             }
         }
     }

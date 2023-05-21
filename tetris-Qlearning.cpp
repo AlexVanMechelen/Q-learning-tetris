@@ -12,6 +12,7 @@
 #include <fstream>
 #include <string>
 
+
 bool DEBUG_MODE = false; // Used to visualize the game
 bool FIXED_HEIGHT_TEST = false; // Plays an infinite amount of pieces with a maximum game board height
 bool log_height_data = false; // Used to log the data to a file
