@@ -12,7 +12,6 @@
 #include <fstream>
 #include <string>
 
-
 bool DEBUG_MODE = false; // Used to visualize the game
 bool FIXED_HEIGHT_TEST = false; // Plays an infinite amount of pieces with a maximum game board height
 bool log_height_data = false; // Used to log the data to a file
@@ -32,14 +31,14 @@ const int NUM_PIECES = 195+1;				// Number of pieces
 const int NUM_COL = WIDTH-1+1;				// Number of columns
 const int NUM_ROTATIONS = 3+1;				// Number of rotations
 
-float gamma = 0.80f;		 // Discount factor
-float alpha = 0.02f;		 // Learning rate
+float gamma = 0.75f;		 // Discount factor
+float alpha = 0.15f;		 // Learning rate
 double EPSILON = 0;		     // Epsilon for epsilon-greedy exploration
 bool EPSILON_DECAY = false;	 // Indicates if EPSILON should decay over time
 
 //reward function parameters
 int kloss = -100;     // Reward for Number of rows added to height when they're 'pushed down') 
-int kcomb = 500;      // Reward for Number of rows completed
+int kcomb = 600;      // Reward for Number of rows completed
 int kdens = 0;        // Reward for Number of "holes"
 int kbump = 0;        // Reward for Number of 'bumps' (number of blocks that are not on the bottom layer and have a block below them)
 

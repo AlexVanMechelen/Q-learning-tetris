@@ -9,25 +9,20 @@
 //const int MAX_WINDOWS = 30;
 bool execute = true;
 
-//const int n_gamma = 10;
-//const int n_alpha = 10;
-//float gammas[n_gamma] = {0.1f, 0.2f, 0.3f, 0.4f, 0.5f, 0.6f, 0.7f, 0.8f, 0.9f, 1.0f};
-//float alphas[n_alpha] = {0.1f, 0.2f, 0.3f, 0.4f, 0.5f, 0.6f, 0.7f, 0.8f, 0.9f, 1.0f};
-
-const int n_gamma = 9;
-const int n_alpha = 7;
-float gammas[n_gamma] = {0.6f, 0.625f, 0.65f, 0.675f, 0.7f, 0.725f, 0.75f, 0.775f, 0.8f};
-float alphas[n_alpha] = {0.01f, 0.05f, 0.1f, 0.15f, 0.2f, 0.25f, 0.3f};
+const int n_kdens = 9;
+const int n_kbump = 9;
+int kdenses[n_kdens] = {-400, -200, -100, -10, 0, 10, 100, 200, 400};
+int kbumps[n_kbump] = {-400, -200, -100, -10, 0, 10, 100, 200, 400};
 
 int main() {
     bool error_flag = false;
     int windowCount = 0;
 
-    //iterate over all combinations of gamma and alpha
-    for (float alpha : alphas) {
-        for (float gamma : gammas) {
+    //iterate over all combinations of kdens and kbump
+    for (int kbump : kbumps) {
+        for (int kdens : kdenses) {
 
-            std::cout << "alpha = " << alpha << " gamma = " << gamma << std::endl;
+            std::cout << "kbump = " << kbump << " kdens = " << kdens << std::endl;
 
             // Open the source file
             std::ifstream inputFile("tetris-Qlearning.cpp");
@@ -37,7 +32,7 @@ int main() {
             }
 
             // Create a new file to store the modified contents
-            std::string filename = "tetris-Qlearning_gamma_"+ std::to_string(gamma) + "_alpha_" + std::to_string(alpha) + ".cpp";
+            std::string filename = "tetris-Qlearning_kdens_"+ std::to_string(kdens) + "_kbump_" + std::to_string(kbump) + ".cpp";
 
             std::ofstream outputFile(filename);
             if (!outputFile) {
@@ -50,21 +45,21 @@ int main() {
             while (std::getline(inputFile, line)) {
 
                 // Check if it is line 34
-                if (lineNumber == 34) {
-                    // Replace the value of gamma
-                    size_t pos = line.find("float gamma = 0.75f;");
+                if (lineNumber == 42) {
+                    // Replace the value of kdens
+                    size_t pos = line.find("int kdens = 0;");
                     if (pos != std::string::npos) {
-                        std::string gamma_line = "float gamma = "+ std::to_string(gamma) + "f";
-                        line.replace(pos, 19, gamma_line);
+                        std::string kdens_line = "int kdens = "+ std::to_string(kdens) + ";";
+                        line.replace(pos, 19, kdens_line);
                     }
                 }
                 // Check if it is line 35
-                if (lineNumber == 35) {
-                    // Replace the value of alpha
-                    size_t pos = line.find("float alpha = 0.15f;");
+                if (lineNumber == 43) {
+                    // Replace the value of kbump
+                    size_t pos = line.find("int kbump = 0;");
                     if (pos != std::string::npos) {
-                        std::string alpha_line = "float alpha = "+ std::to_string(alpha) + "f";
-                        line.replace(pos, 19, alpha_line);
+                        std::string kbump_line = "int kbump = "+ std::to_string(kbump) + ";";
+                        line.replace(pos, 19, kbump_line);
                     }
                 }
 
@@ -85,7 +80,7 @@ int main() {
                 std::cout << "Compilation successful." << std::endl;
 
                 if(execute) {
-                    std::string exeFilename = "tetris-Qlearning_gamma_"+ std::to_string(gamma) + "_alpha_" + std::to_string(alpha) + ".exe";
+                    std::string exeFilename = "tetris-Qlearning_kdens_"+ std::to_string(kdens) + "_kbump_" + std::to_string(kbump) + ".exe";
                     std::string command = "cmd.exe /c start " + exeFilename;
                     system(command.c_str());
                 }
@@ -107,7 +102,7 @@ int main() {
                 }
                 
                 // Execute the program
-                std::string exeFilename = "tetris-Qlearning_gamma_"+ std::to_string(gamma) + "_alpha_" + std::to_string(alpha) + ".exe";
+                std::string exeFilename = "tetris-Qlearning_kdens_"+ std::to_string(kdens) + "_kbump_" + std::to_string(kbump) + ".exe";
 
                 // Create process information structures
                 STARTUPINFO si;
@@ -144,39 +139,45 @@ int main() {
     } else {
         std::cout << "File compilation failed." << std::endl;
     }
-    //Matlab code to generation
+
+    
+    //Matlab code generation
 
     std::ostringstream code;
-    std::ostringstream code2;
-    std::ostringstream code3;
 
     int i = 1;
-    for (float alpha : alphas) {
-        for (float gamma : gammas) {
-            code << "log_data(:,:," << i << ") = importdata('log_gamma_=" << std::to_string(gamma) << "_alpha_=" << std::to_string(alpha) << "_kloss_=-100_kcomb_=500_kdens_=0_kbump_=0.txt').textdata;\n";
+    for (float kbump : kbumps) {
+        for (float kdens : kdenses) {
+            code << "log_data(:,:," << i << ") = importdata('log_gamma_=0.750000_alpha_=0.150000_kloss_=-100_kcomb_=600_kdens_=" << kdens << "_kbump_=" << kbump << ".txt');\n";
             i++;
         }
     }
 
-    for (int i = 1; i <= n_alpha*n_gamma; i++) {
+    /*
+    std::ostringstream code2;
+    std::ostringstream code3;
+
+    for (int i = 1; i <= n_kbump*n_kdens; i++) {
         code2 << "avgHeight" << i << " = str2double(cell2mat(log_data" << i << "(14, 5)));\n";
     }
 
     code3 << "z = [";
-    for (int i = 1; i <= n_alpha*n_gamma; i++) {
+    for (int i = 1; i <= n_kbump*n_kdens; i++) {
         code3 << "avgHeight" << i;
-        if (i !=  n_alpha*n_gamma) {
+        if (i !=  n_kbump*n_kdens) {
             code3 << " ";
-            if (i % n_gamma == 0) {
+            if (i % n_kdens == 0) {
                 code3 << "\n    ";
             }
         }
     }
     code3 << "];\n";
 
-    std::cout << code.str() << std::endl;
     std::cout << code2.str() << std::endl;
     std::cout << code3.str() << std::endl;
+
+    */
+    std::cout << code.str() << std::endl;
 
     return 0;
 }
