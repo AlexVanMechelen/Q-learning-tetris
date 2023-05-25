@@ -16,6 +16,9 @@ const int n_kbump = 9;
 int kdenses[n_kdens] = {-400, -200, -100, -10, 0, 10, 100, 200, 400};
 int kbumps[n_kbump] = {-400, -200, -100, -10, 0, 10, 100, 200, 400};
 
+const int n_epsilon = 13;
+float epsilons[n_epsilon] = {0.0f, 0.05f, 0.1f, 0.15f, 0.2f, 0.3f, 0.4f, 0.5f, 0.6f, 0.7f, 0.8f, 0.9f ,1.0f};
+
 
 
 int main() {
@@ -31,7 +34,7 @@ int main() {
             i++;
         }
     }
-    */
+    
     int i = 1;
     for (float kbump : kbumps) {
         for (float kdens : kdenses) {
@@ -39,6 +42,15 @@ int main() {
             i++;
         }
     }
+    */
+
+    int i = 1;
+    for (float epsilon : epsilons) {
+        code << "log_data(:,:," << i << ") = importdata('log_epsilon_=" << std::to_string(epsilon) << ".txt');\n";
+        i++;
+    }
+
+    //std::string filename = "log_epsilon_="+ std::to_string(first_epsilon) + ".txt";
 
     std::cout << code.str() << std::endl;
 }

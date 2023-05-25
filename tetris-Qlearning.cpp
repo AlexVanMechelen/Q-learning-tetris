@@ -13,7 +13,7 @@
 #include <string>
 
 bool DEBUG_MODE = false; // Used to visualize the game & show debug info on each piece-playing iteration
-const bool FIXED_HEIGHT_TEST = true; // Plays an infinite amount of pieces with a maximum game board height every 'power of two'-th game (could be used as a performance metric)
+const bool FIXED_HEIGHT_TEST = false; // Plays an infinite amount of pieces with a maximum game board height every 'power of two'-th game (could be used as a performance metric)
 const bool log_height_data = false; // Used to log the data to a file for post-processing
 const int n_games = 11; // Number of games to play (2^n_games)
 
@@ -31,17 +31,18 @@ const int kcomb = 600;      // Reward weight for Number of rows completed
 const int kdens = 0;        // Reward weight for Number of 'holes'
 const int kbump = 0;        // Reward weight for Number of 'bumps' (number of blocks that are not on the bottom layer and have a block below them)
 
-
+/*
 const int NUM_STATES = (1<<(WIDTH+WIDTH))-(1<<(WIDTH))-1;	// Number of states (State represented by largest unsigned has the following bits: 111110111110)
 const int NUM_PIECES = 3<<WIDTH + 3;						// Number of pieces (Piece represented by largest unsigned has the following bits: 11000011)
 const int NUM_COL = WIDTH-1;								// Number of columns (1 less than WIDTH, since the pieces are 2 blocks wide)
 const int NUM_ROTATIONS = 4;								// Number of rotations
-/*
+*/
+
 const int NUM_STATES = 1<<(WIDTH+WIDTH)+1;	// Number of states
 const int NUM_PIECES = 195+1;				// Number of pieces
 const int NUM_COL = WIDTH-1+1;				// Number of columns
 const int NUM_ROTATIONS = 3+1;				// Number of rotations
-*/
+
 std::vector<std::vector<std::vector<std::vector<double>>>> qValues(NUM_STATES,
 std::vector<std::vector<std::vector<double>>>(NUM_PIECES,
 std::vector<std::vector<double>>(NUM_COL,
@@ -561,10 +562,16 @@ unsigned learn(unsigned state,unsigned piece, unsigned next_piece, unsigned &pla
 	height = row_LIFO_stack_below.size() + ((state & ((1<<WIDTH)-1)) > 0) + (state > ((1<<WIDTH)-1)); // Set game height to the current LIFO stack below size + the height of the state
 
 	// Compute features usable in a reward function
-	double game_density; // The higher the density, the less holes
-	double bumpiness; // Variance of heights of all neighboring top blocks of each row
-	calc_density_and_bumpiness(game_density, bumpiness, state); // Calculate these parameters for the newly obtained state
-	if (DEBUG_MODE) std::cout << "game_density = " << game_density << " & bumpiness = " << bumpiness << std::endl;
+	double game_density = 0.0; // The higher the density, the less holes
+	double bumpiness = 0 ; // Variance of heights of all neighboring top blocks of each row
+	// if kdens and kbump are not 0, calculate game_density and bumpiness
+	if (kdens != 0 || kbump != 0)
+	{
+		calc_density_and_bumpiness(game_density, bumpiness, state); // Calculate these parameters for the newly obtained state
+		if (DEBUG_MODE) std::cout << "game_density = " << game_density << " & bumpiness = " << bumpiness << std::endl;
+	}
+	
+
 
 	// Get reward from reward function
 	double reward = loss*kloss + (number_of_completed_rows+above_row_completion)*kcomb + game_density*kdens + bumpiness* kbump;  // Reward function can be optimized by hyperparameter tuning (weights: kloss, kcomb, kdens, kbump)
@@ -682,11 +689,13 @@ void debugModeMenu(bool &pressed_g, bool &pressed_2)
 }
 
 int main(int,char**)
-{
+{		
 	int game = 0;
 	std::ofstream log_file;
 	std::ofstream log_heights_file;
-    std::string filename = "log_gamma_="+ std::to_string(gamma) + "_alpha_=" + std::to_string(alpha) + "_kloss_=" + std::to_string(kloss) + "_kcomb_=" + std::to_string(kcomb) + "_kdens_=" + std::to_string(kdens) + "_kbump_=" + std::to_string(kbump) + ".txt";
+    //std::string filename = "log_gamma_="+ std::to_string(gamma) + "_alpha_=" + std::to_string(alpha) + "_kloss_=" + std::to_string(kloss) + "_kcomb_=" + std::to_string(kcomb) + "_kdens_=" + std::to_string(kdens) + "_kbump_=" + std::to_string(kbump) + ".txt";
+	double first_epsilon = EPSILON; 
+	std::string filename = "log_epsilon_="+ std::to_string(first_epsilon) + ".txt";
     log_file.open(filename);
     log_heights_file.open("log_heights.txt");
 
