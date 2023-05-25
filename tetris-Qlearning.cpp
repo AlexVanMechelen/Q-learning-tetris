@@ -12,7 +12,7 @@
 #include <fstream>
 #include <string>
 
-const bool DEBUG_MODE = false; // Used to visualize the game & show debug info on each piece-playing iteration
+bool DEBUG_MODE = false; // Used to visualize the game & show debug info on each piece-playing iteration
 const bool FIXED_HEIGHT_TEST = false; // Plays an infinite amount of pieces with a maximum game board height every 'power of two'-th game (could be used as a performance metric)
 const bool log_height_data = false; // Used to log the data to a file for post-processing
 const int n_games = 11; // Number of games to play (2^n_games)
