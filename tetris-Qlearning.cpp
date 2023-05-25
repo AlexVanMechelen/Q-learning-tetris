@@ -12,35 +12,35 @@
 #include <fstream>
 #include <string>
 
-bool DEBUG_MODE = false; // Used to visualize the game
-bool FIXED_HEIGHT_TEST = false; // Plays an infinite amount of pieces with a maximum game board height
-bool log_height_data = false; // Used to log the data to a file
-int n_games = 11; // Number of games to play (log2)
+const bool DEBUG_MODE = false; // Used to visualize the game & show debug info on each piece-playing iteration
+const bool FIXED_HEIGHT_TEST = false; // Plays an infinite amount of pieces with a maximum game board height every 'power of two'-th game (could be used as a performance metric)
+const bool log_height_data = false; // Used to log the data to a file for post-processing
+const int n_games = 11; // Number of games to play (2^n_games)
 
 #define MAX_HEIGHT (10) // Max height used in a FIXED_HEIGHT_TEST
-#define WIDTH (6)	
-/*									// Game width (height of state = 2)
+#define WIDTH (6)		// Game width (height of state = 2)
+
+const float gamma = 0.75f;			// Discount factor
+const float alpha = 0.15f;			// Learning rate
+const bool EPSILON_DECAY = false;	// Indicates if EPSILON should decay over time
+double EPSILON = 0;		     		// Epsilon for epsilon-greedy exploration
+
+// Reward function weights
+const int kloss = -100;     // Reward weight for Number of rows added to height when they're 'pushed down') 
+const int kcomb = 600;      // Reward weight for Number of rows completed
+const int kdens = 0;        // Reward weight for Number of 'holes'
+const int kbump = 0;        // Reward weight for Number of 'bumps' (number of blocks that are not on the bottom layer and have a block below them)
+
+/*
 const int NUM_STATES = (1<<(WIDTH+WIDTH))-(1<<(WIDTH))-1;	// Number of states (State represented by largest unsigned has the following bits: 111110111110)
 const int NUM_PIECES = 3<<WIDTH + 3;						// Number of pieces (Piece represented by largest unsigned has the following bits: 11000011)
 const int NUM_COL = WIDTH-1;								// Number of columns (1 less than WIDTH, since the pieces are 2 blocks wide)
 const int NUM_ROTATIONS = 4;								// Number of rotations
 */
-
 const int NUM_STATES = 1<<(WIDTH+WIDTH)+1;	// Number of states
 const int NUM_PIECES = 195+1;				// Number of pieces
 const int NUM_COL = WIDTH-1+1;				// Number of columns
 const int NUM_ROTATIONS = 3+1;				// Number of rotations
-
-float gamma = 0.75f;		 // Discount factor
-float alpha = 0.15f;		 // Learning rate
-double EPSILON = 0;		     // Epsilon for epsilon-greedy exploration
-bool EPSILON_DECAY = false;	 // Indicates if EPSILON should decay over time
-
-//reward function parameters
-int kloss = -100;     // Reward for Number of rows added to height when they're 'pushed down') 
-int kcomb = 600;      // Reward for Number of rows completed
-int kdens = 0;        // Reward for Number of "holes"
-int kbump = 0;        // Reward for Number of 'bumps' (number of blocks that are not on the bottom layer and have a block below them)
 
 std::vector<std::vector<std::vector<std::vector<double>>>> qValues(NUM_STATES,
 std::vector<std::vector<std::vector<double>>>(NUM_PIECES,
@@ -67,7 +67,7 @@ void empty_stack(stack<unsigned>& q) {
     q.swap(empty); // Swap the input queue with the empty one
 }
 
-unsigned result(unsigned state, unsigned action, unsigned piece, int &num_completed_rows_tmp) 
+unsigned take_single_action(unsigned state, unsigned action, unsigned piece, int &num_completed_rows_tmp) 
 {
 	piece <<= action; // Move the piece horizontally to the position indicated by 'action'
 	while((piece & state) || ((piece <<WIDTH & state) && ((piece<<1 & state) || (action == WIDTH-1)) && ((piece>>1 & state) || (action == 0)))) // Check if the piece could have gotten into this position, if not -> go inside this loop
@@ -360,7 +360,7 @@ void calc_density_and_bumpiness(double &game_density, double &bumpiness, unsigne
 	return;
 }
 
-unsigned crank(unsigned state,unsigned piece, unsigned next_piece, unsigned &played_piece, int &height, unsigned last_hole_idx = (1<<WIDTH)-1)
+unsigned learn(unsigned state,unsigned piece, unsigned next_piece, unsigned &played_piece, int &height, unsigned last_hole_idx = (1<<WIDTH)-1)
 {
 	std::random_device rd;
   	std::mt19937 gen(rd());
@@ -408,7 +408,7 @@ unsigned crank(unsigned state,unsigned piece, unsigned next_piece, unsigned &pla
 		stack<unsigned> row_LIFO_stack_above_two_tmp; // LIFO stack that keeps track of the rows above the current inspected 2xWIDTH frame and gets used in the crank function
 		row_LIFO_stack_above_two_tmp = duplicateStack(row_LIFO_stack_above_two); // Fill the tmp LIFO stack that keeps track of the two rows above the current 2xWIDTH frame in 'state'
 		int num_completed_rows_tmp = 0; // Used to track how many rows are completed by playing the piece
-		unsigned n = result(state,a,rotate(piece,r),num_completed_rows_tmp); // Return the game board that would result from placing 'piece' at horizontal position 'a' with rotation 'r'. Can have up to height 4 
+		unsigned n = take_single_action(state,a,rotate(piece,r),num_completed_rows_tmp); // Return the game board that would result from placing 'piece' at horizontal position 'a' with rotation 'r'. Can have up to height 4 
 		int l=0; // Variable to keep track of how many rows were shifted up (number of extra rows above the normal 2)
 		int collision=0; // Bool that keeps track if there's a collision
 		int above_row_completion_flag=0; // Will be used to keep track if playing the piece in the best way completes 
@@ -513,22 +513,6 @@ unsigned crank(unsigned state,unsigned piece, unsigned next_piece, unsigned &pla
 		
 		//if (DEBUG_MODE) std::cout << "first qValues[state = " << state << "][piece = " << piece << "][col = " << a << "][rot = " << r << "] = " << qValues[state][piece][a][r] << std::endl;
 		
-		/*
-		if(qValues[state][piece][a][r] > best2) // If the discount factor times the Q value of this new position (score for how good this new position is) MINOUS a punishment for the number of rows lost (l*-100) is bigger than the current best score for a next state
-		{
-			// Save the current best next state
-			t=n;
-			bestcol = a;
-			bestrot = r;
-			above_row_completion = above_row_completion_flag;
-			number_of_completed_rows = num_completed_rows_tmp;
-			loss = l; // Save the loss of the current best next state
-			best2 = qValues[state][piece][a][r]; // Update the current best score for a next state
-			row_FIFO_queue_below_best = duplicateQueue(row_FIFO_queue_below_tmp); // Save a duplicate of this move's below FIFO queue
-			num_rows_from_above = row_LIFO_stack_above_two_tmp.size(); // Keep track of how many rows from above are used in the best solution to later delete them from the real above LIFO stack
-			played_piece = rotate(piece,r)<<a; // Save where the current piece is played
-		}
-		*/
 	  }
 	}
 
@@ -583,7 +567,7 @@ unsigned crank(unsigned state,unsigned piece, unsigned next_piece, unsigned &pla
 	if (DEBUG_MODE) std::cout << "game_density = " << game_density << " & bumpiness = " << bumpiness << std::endl;
 
 	// Get reward from reward function
-	double reward = loss*kloss + (number_of_completed_rows+above_row_completion)*kcomb + game_density*kdens + bumpiness* kbump;  // >>>>>>>>>>>>>>>>>>>>>>>> TODO <<<<<<>>>>>> Implement more reward functions <<<<<<<<<<<<<<<<<<<<<<<<
+	double reward = loss*kloss + (number_of_completed_rows+above_row_completion)*kcomb + game_density*kdens + bumpiness* kbump;  // Reward function can be optimized by hyperparameter tuning (weights: kloss, kcomb, kdens, kbump)
 	if (DEBUG_MODE) std::cout << "reward is " << reward << std::endl;
 
 	// Find action maximizing the q_value of the new state
@@ -648,7 +632,7 @@ unsigned Qlearning_iteration(unsigned state, unsigned piece, unsigned next_piece
 		hole_idx = find_holes(state, piece, last_hole_idx); // Find holes that can be reached from the hole on the layer above (last_hole_idx) and save them
 	} // By the end of this loop there are either no more holes OR we're at the bottom row
 	row_LIFO_stack_above_two = copy_top_two_from_LIFO_stack(row_LIFO_stack_above);
-	unsigned next_state = crank(state, piece, next_piece, played_piece, height, last_hole_idx); // Use the last_hole_idx to see where the pieces could be coming from
+	unsigned next_state = learn(state, piece, next_piece, played_piece, height, last_hole_idx); // Use the last_hole_idx to see where the pieces could be coming from
 	return next_state;
 }
 
