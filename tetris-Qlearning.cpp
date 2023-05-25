@@ -13,7 +13,7 @@
 #include <string>
 
 bool DEBUG_MODE = false; // Used to visualize the game & show debug info on each piece-playing iteration
-const bool FIXED_HEIGHT_TEST = false; // Plays an infinite amount of pieces with a maximum game board height every 'power of two'-th game (could be used as a performance metric)
+const bool FIXED_HEIGHT_TEST = true; // Plays an infinite amount of pieces with a maximum game board height every 'power of two'-th game (could be used as a performance metric)
 const bool log_height_data = false; // Used to log the data to a file for post-processing
 const int n_games = 11; // Number of games to play (2^n_games)
 
@@ -31,17 +31,17 @@ const int kcomb = 600;      // Reward weight for Number of rows completed
 const int kdens = 0;        // Reward weight for Number of 'holes'
 const int kbump = 0;        // Reward weight for Number of 'bumps' (number of blocks that are not on the bottom layer and have a block below them)
 
-/*
+
 const int NUM_STATES = (1<<(WIDTH+WIDTH))-(1<<(WIDTH))-1;	// Number of states (State represented by largest unsigned has the following bits: 111110111110)
 const int NUM_PIECES = 3<<WIDTH + 3;						// Number of pieces (Piece represented by largest unsigned has the following bits: 11000011)
 const int NUM_COL = WIDTH-1;								// Number of columns (1 less than WIDTH, since the pieces are 2 blocks wide)
 const int NUM_ROTATIONS = 4;								// Number of rotations
-*/
+/*
 const int NUM_STATES = 1<<(WIDTH+WIDTH)+1;	// Number of states
 const int NUM_PIECES = 195+1;				// Number of pieces
 const int NUM_COL = WIDTH-1+1;				// Number of columns
 const int NUM_ROTATIONS = 3+1;				// Number of rotations
-
+*/
 std::vector<std::vector<std::vector<std::vector<double>>>> qValues(NUM_STATES,
 std::vector<std::vector<std::vector<double>>>(NUM_PIECES,
 std::vector<std::vector<double>>(NUM_COL,
@@ -696,8 +696,12 @@ int main(int,char**)
 	bool pressed_g = false;
 	bool pressed_2 = false;
 
-	std::cout <<"game | height | average_height | epsilon | number of calculated q values" << std::endl;
-	//log_file <<"game | height | epsilon | number of calculated q values | average_height " << std::endl;
+	if (FIXED_HEIGHT_TEST) // Plays an infinite amount of pieces with a maximum game board height
+		std::cout <<"\ngame | height | average_height | epsilon | number of calculated q values | #pieces played in fixed height game" << std::endl;
+	else {
+		std::cout <<"\ngame | height | average_height | epsilon | number of calculated q values" << std::endl;
+	}
+
 	while(game<1<<n_games) // Play 2^13 games, each consists of 10000 pieces
 	{
 		srand(0);
@@ -771,12 +775,12 @@ int main(int,char**)
 					}
 					piece = next_piece;
 				}
-				printf("%4d %4d %1.4f %6d %7d\n",game,prev_height,EPSILON, number_of_calculated_q_values, i);
-				log_file << game << " " << height << " " << EPSILON << " " << number_of_calculated_q_values << " " << i << std::endl;
+				printf("%4d |  %4d  |     %6.2f     |  %1.4f |           %6d              |             %7d\n", game, prev_height, average_height, EPSILON, number_of_calculated_q_values, i);
+				log_file << game << " " << height << " " << EPSILON << " " << number_of_calculated_q_values << " " << average_height << " " << i << std::endl;
 			}
 			else
 			{
-				printf("%4d %4d %3.2f %1.4f %6d\n",game,height,average_height, EPSILON, number_of_calculated_q_values);
+				printf("%4d |  %4d  |     %6.2f     |  %1.4f |           %6d\n", game, height, average_height, EPSILON, number_of_calculated_q_values);
 				log_file << game << " " << height << " " << EPSILON << " " << number_of_calculated_q_values << " " << average_height << std::endl;
 			}
 		}
