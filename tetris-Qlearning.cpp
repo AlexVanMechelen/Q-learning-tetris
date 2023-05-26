@@ -22,14 +22,17 @@ const int n_games = 11; // Number of games to play (2^n_games)
 
 const float gamma = 0.75f;			// Discount factor
 const float alpha = 0.15f;			// Learning rate
-const bool EPSILON_DECAY = false;	// Indicates if EPSILON should decay over time
-double EPSILON = 0;		     		// Epsilon for epsilon-greedy exploration
+const bool EPSILON_DECAY = true;	// Indicates if EPSILON should decay over time
+double EPSILON = 0.2;		     		// Epsilon for epsilon-greedy exploration
 
 // Reward function weights
 const int kloss = -100;     // Reward weight for Number of rows added to height when they're 'pushed down') 
 const int kcomb = 600;      // Reward weight for Number of rows completed
 const int kdens = 0;        // Reward weight for Number of 'holes'
 const int kbump = 0;        // Reward weight for Number of 'bumps' (number of blocks that are not on the bottom layer and have a block below them)
+
+int N_max = 10;
+double R_plus = 20.0;
 
 /*
 const int NUM_STATES = (1<<(WIDTH+WIDTH))-(1<<(WIDTH))-1;	// Number of states (State represented by largest unsigned has the following bits: 111110111110)
@@ -519,7 +522,11 @@ unsigned learn(unsigned state,unsigned piece, unsigned next_piece, unsigned &pla
 
 	assert(next_states.size()); // There should be next states
 
-	best = EpsilonGreedyExplorationMethod(state,  piece, cols, rots, EPSILON); // get the action with the exploration function
+	best = EpsilonGreedyExplorationMethod(state,  piece, cols, rots, EPSILON); // get the action with the exploration function ---------------------------------------------------------------------------------------------------------------------------------------Exploration function
+
+	//best = RandomExplorationMethod(state,  piece, cols, rots);
+
+	//best = SimpleExplorationMethod(state,  piece, cols, rots, N_max, R_plus);
 
 	unsigned prev_state = state; // Save previous state for q value update
 
@@ -693,10 +700,14 @@ int main(int,char**)
 	int game = 0;
 	std::ofstream log_file;
 	std::ofstream log_heights_file;
-    //std::string filename = "log_gamma_="+ std::to_string(gamma) + "_alpha_=" + std::to_string(alpha) + "_kloss_=" + std::to_string(kloss) + "_kcomb_=" + std::to_string(kcomb) + "_kdens_=" + std::to_string(kdens) + "_kbump_=" + std::to_string(kbump) + ".txt";
-	double first_epsilon = EPSILON; 
-	std::string filename = "log_epsilon_="+ std::to_string(first_epsilon) + ".txt";
-    log_file.open(filename);
+    std::string filename = "log_gamma_="+ std::to_string(gamma) + "_alpha_=" + std::to_string(alpha) + "_kloss_=" + std::to_string(kloss) + "_kcomb_=" + std::to_string(kcomb) + "_kdens_=" + std::to_string(kdens) + "_kbump_=" + std::to_string(kbump) + ".txt";
+	//double first_epsilon = EPSILON; 
+	//std::string filename = "log_epsilon_="+ std::to_string(first_epsilon) + ".txt";
+	//std::string filename = "log_epsilon_="+ std::to_string(first_epsilon) + "_with_decay.txt";
+	//std::string filename = "log_rnd_exploration.txt";
+	//std::string filename = "log_simple_exploration_Nmax_="+ std::to_string(N_max) + "_Rplus_=" + std::to_string(R_plus) + ".txt";
+    
+	log_file.open(filename);
     log_heights_file.open("log_heights.txt");
 
 	//log_file << "gamma = " << gamma << " alpha = " << alpha << " kloss = " << kloss << " kcomb = " << kcomb << " kdens = " << kdens << " kbump = " << kbump << std::endl;
