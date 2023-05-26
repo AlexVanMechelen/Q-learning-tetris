@@ -49,8 +49,8 @@ int main() {
             int lineNumber = 1;
             while (std::getline(inputFile, line)) {
 
-                // Check if it is line 34
-                if (lineNumber == 34) {
+                // Check if it is line 26
+                if (lineNumber == 26) {
                     // Replace the value of gamma
                     size_t pos = line.find("float gamma = 0.75f;");
                     if (pos != std::string::npos) {
@@ -58,8 +58,8 @@ int main() {
                         line.replace(pos, 19, gamma_line);
                     }
                 }
-                // Check if it is line 35
-                if (lineNumber == 35) {
+                // Check if it is line 27
+                if (lineNumber == 27) {
                     // Replace the value of alpha
                     size_t pos = line.find("float alpha = 0.15f;");
                     if (pos != std::string::npos) {

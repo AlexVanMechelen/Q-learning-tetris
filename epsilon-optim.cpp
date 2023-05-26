@@ -42,8 +42,8 @@ int main() {
         int lineNumber = 1;
         while (std::getline(inputFile, line)) {
 
-            // Check if it is line 26
-            if (lineNumber == 26) {
+            // Check if it is line 29
+            if (lineNumber == 29) {
                 // Replace the value of epsilon
                 size_t pos = line.find("double EPSILON = 0;");
                 if (pos != std::string::npos) {

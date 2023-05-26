@@ -12,18 +12,21 @@
 #include <fstream>
 #include <string>
 
+// Program options
 bool DEBUG_MODE = false; // Used to visualize the game & show debug info on each piece-playing iteration
-const bool FIXED_HEIGHT_TEST = false; // Plays an infinite amount of pieces with a maximum game board height every 'power of two'-th game (could be used as a performance metric)
+const bool FIXED_HEIGHT_TEST = true; // Plays an infinite amount of pieces with a maximum game board height every 'power of two'-th game (could be used as a performance metric)
 const bool log_height_data = false; // Used to log the data to a file for post-processing
-const int n_games = 11; // Number of games to play (2^n_games)
 
+// Model constants
 #define MAX_HEIGHT (10) // Max height used in a FIXED_HEIGHT_TEST
 #define WIDTH (6)		// Game width (height of state = 2)
+#define N_GAMES (11)	// Number of games to play (2^N_GAMES)
 
+// Q-learning hyperparameters
 const float gamma = 0.75f;			// Discount factor
 const float alpha = 0.15f;			// Learning rate
 const bool EPSILON_DECAY = true;	// Indicates if EPSILON should decay over time
-double EPSILON = 0.2;		     		// Epsilon for epsilon-greedy exploration
+double EPSILON = 0.2;		     	// Epsilon for epsilon-greedy exploration
 
 // Reward function weights
 const int kloss = -100;     // Reward weight for Number of rows added to height when they're 'pushed down') 
@@ -31,31 +34,29 @@ const int kcomb = 600;      // Reward weight for Number of rows completed
 const int kdens = 0;        // Reward weight for Number of 'holes'
 const int kbump = 0;        // Reward weight for Number of 'bumps' (number of blocks that are not on the bottom layer and have a block below them)
 
-int N_max = 10;
-double R_plus = 20.0;
+// SimpleExplorationMethod parameters
+const int N_max = 10;
+const double R_plus = 20.0;
 
-/*
+// Dimensions of the Q-table
 const int NUM_STATES = (1<<(WIDTH+WIDTH))-(1<<(WIDTH))-1;	// Number of states (State represented by largest unsigned has the following bits: 111110111110)
-const int NUM_PIECES = 3<<WIDTH + 3;						// Number of pieces (Piece represented by largest unsigned has the following bits: 11000011)
+const int NUM_PIECES = 3<<WIDTH + 4;						// Number of pieces (Piece represented by largest unsigned has the following bits: 11000011)
 const int NUM_COL = WIDTH-1;								// Number of columns (1 less than WIDTH, since the pieces are 2 blocks wide)
 const int NUM_ROTATIONS = 4;								// Number of rotations
-*/
 
-const int NUM_STATES = 1<<(WIDTH+WIDTH)+1;	// Number of states
-const int NUM_PIECES = 195+1;				// Number of pieces
-const int NUM_COL = WIDTH-1+1;				// Number of columns
-const int NUM_ROTATIONS = 3+1;				// Number of rotations
-
+// Initialize the Q-values to zeros 
 std::vector<std::vector<std::vector<std::vector<double>>>> qValues(NUM_STATES,
 std::vector<std::vector<std::vector<double>>>(NUM_PIECES,
 std::vector<std::vector<double>>(NUM_COL,
-std::vector<double>(NUM_ROTATIONS, 0.0))));  // Initialize the Q-values to zeros 
+std::vector<double>(NUM_ROTATIONS, 0.0))));
 
+// Initialize N to zeros; keeps track of amount of times a state action pair has been explored; used by the SimpleExplorationMethod
 std::vector<std::vector<std::vector<std::vector<long>>>> N(NUM_STATES,
 std::vector<std::vector<std::vector<long>>>(NUM_PIECES,
 std::vector<std::vector<long>>(NUM_COL,
-std::vector<long>(NUM_ROTATIONS, 0))));  // Initialize N to zeros; keeps track of amount of times a state action pair has been explored; used by the SimpleExplorationMethod
+std::vector<long>(NUM_ROTATIONS, 0))));
 
+// Stacks for storing portions of the game board
 using namespace std;
 stack<unsigned> row_LIFO_stack_above; // LIFO stack that keeps track of the rows above the current inspected 2xWIDTH frame (gets filled when there are 'holes' present and we move downward to old layers)
 stack<unsigned> row_LIFO_stack_below; // LIFO stack that keeps track of the rows below the current inspected 2xWIDTH frame (used to save old rows when the top pieces build outside the 2xWIDTH frame)
@@ -522,10 +523,9 @@ unsigned learn(unsigned state,unsigned piece, unsigned next_piece, unsigned &pla
 
 	assert(next_states.size()); // There should be next states
 
-	best = EpsilonGreedyExplorationMethod(state,  piece, cols, rots, EPSILON); // get the action with the exploration function ---------------------------------------------------------------------------------------------------------------------------------------Exploration function
-
+	best = EpsilonGreedyExplorationMethod(state,  piece, cols, rots, EPSILON); // get the action with the exploration function ---------------------------------------------------------------------------------------------------------Exploration function
+	//best = IdentityExplorationMethod(state,  piece, cols, rots);
 	//best = RandomExplorationMethod(state,  piece, cols, rots);
-
 	//best = SimpleExplorationMethod(state,  piece, cols, rots, N_max, R_plus);
 
 	unsigned prev_state = state; // Save previous state for q value update
@@ -722,7 +722,7 @@ int main(int,char**)
 		std::cout <<"\ngame | height | average_height | epsilon | number of calculated q values" << std::endl;
 	}
 
-	while(game<1<<n_games) // Play 2^13 games, each consists of 10000 pieces
+	while(game<1<<N_GAMES) // Play 2^13 games, each consists of 10000 pieces
 	{
 		srand(0);
 		int height = 0; // This variable keeps track of how heigh the pieces stack up (The game only considers a 2xWIDTH playable game space. If a new piece gets placed in a way that the game can't fit in this 2xWIDTH space and (an) incompleted row(s) get(s) pushed downward, height increases)

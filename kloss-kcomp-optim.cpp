@@ -44,8 +44,8 @@ int main() {
             int lineNumber = 1;
             while (std::getline(inputFile, line)) {
 
-                // Check if it is line 34
-                if (lineNumber == 40) {
+                // Check if it is line 32
+                if (lineNumber == 32) {
                     // Replace the value of kloss
                     size_t pos = line.find("int kloss = -100;");
                     if (pos != std::string::npos) {
@@ -53,8 +53,8 @@ int main() {
                         line.replace(pos, 19, kloss_line);
                     }
                 }
-                // Check if it is line 35
-                if (lineNumber == 41) {
+                // Check if it is line 33
+                if (lineNumber == 33) {
                     // Replace the value of kcomb
                     size_t pos = line.find("int kcomb = 600;");
                     if (pos != std::string::npos) {

@@ -45,7 +45,7 @@ int main() {
             while (std::getline(inputFile, line)) {
 
                 // Check if it is line 34
-                if (lineNumber == 42) {
+                if (lineNumber == 34) {
                     // Replace the value of kdens
                     size_t pos = line.find("int kdens = 0;");
                     if (pos != std::string::npos) {
@@ -54,7 +54,7 @@ int main() {
                     }
                 }
                 // Check if it is line 35
-                if (lineNumber == 43) {
+                if (lineNumber == 35) {
                     // Replace the value of kbump
                     size_t pos = line.find("int kbump = 0;");
                     if (pos != std::string::npos) {
